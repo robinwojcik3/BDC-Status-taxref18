@@ -19,3 +19,11 @@ FLASK_APP=backend/app.py flask run
 ## Utilisation
 
 Ouvrir `frontend/index.html` dans un navigateur. Entrer les noms latins (un par ligne) puis cliquer sur **Générer**. Un bouton **Exporter en CSV** permet de sauvegarder le tableau obtenu.
+
+## Tests
+
+Pour vérifier que le backend se charge correctement :
+
+```bash
+python3 -m py_compile backend/app.py
+```
