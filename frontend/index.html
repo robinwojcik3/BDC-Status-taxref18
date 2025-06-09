@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BDC Status TAXREF18</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -28,13 +29,14 @@
             </div>
 
             <label for="taxon-input">Saisissez les noms scientifiques (un par ligne) :</label>
-            <textarea id="taxon-input" placeholder="Exemple :&#10;Panthera pardus&#10;Canis lupus&#10;Ursus arctos"></textarea>
+            <textarea id="taxon-input" placeholder="Exemple :&#10;Panthera pardus&#10;Canis lupus&#10;Ursus arctos" rows="10"></textarea>
             
             <div class="button-group">
                 <button id="generate-btn">Générer le Tableau</button>
                 <button id="export-btn" class="hidden">Exporter en CSV</button>
             </div>
         </div>
+        
         <div id="status-message"></div>
         <div id="result-container"></div>
     </main>
