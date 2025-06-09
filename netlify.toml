@@ -1,0 +1,14 @@
+# Fichier : netlify.toml
+
+[build]
+  # Dossier contenant les fichiers statiques à publier
+  publish = "frontend/"
+  
+  # Dossier où Netlify doit chercher les fonctions serverless
+  functions = "netlify/functions/"
+
+# Redirection pour rendre l'API plus simple à appeler depuis le frontend
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
