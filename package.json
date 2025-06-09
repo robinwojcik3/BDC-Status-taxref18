@@ -1,0 +1,8 @@
+{
+  "name": "bdc-status-taxref18",
+  "version": "1.0.0",
+  "description": "Backend serverless pour l'application de statuts TAXREF.",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
