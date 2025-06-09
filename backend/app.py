@@ -67,6 +67,8 @@ def generer_tableau():
 
     if not isinstance(names, list):
         return jsonify({"error": "Invalid data format"}), 400
+    if len(names) == 0:
+        return jsonify({"error": "Empty species list"}), 400
 
     results = []
     for name in names:
