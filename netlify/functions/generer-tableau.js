@@ -1,218 +1,184 @@
 // Fichier : netlify/functions/generer-tableau.js
-// VERSION COMPLÈTEMENT REFAITE BASÉE SUR LA DOCUMENTATION API
+// VERSION MINIMALE ET ROBUSTE
 
 const fetch = require('node-fetch');
 
+// Configuration
 const API_BASE = "https://taxref.mnhn.fr/api";
-const HEADERS = { "Accept": "application/hal+json;version=1" };
+const TIMEOUT = 8000; // 8 secondes de timeout par requête
 
-// Fonction pour rechercher un taxon par nom
-async function searchTaxon(scientificName) {
+// Fonction pour faire une requête avec timeout
+async function fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+    
     try {
-        const cleanName = scientificName.trim();
-        const url = `${API_BASE}/taxa/search?q=${encodeURIComponent(cleanName)}&size=10`;
-        
-        console.log(`Recherche du taxon: ${cleanName}`);
-        
-        const response = await fetch(url, { headers: HEADERS });
-        
-        if (!response.ok) {
-            console.error(`Erreur recherche taxon ${cleanName}: ${response.status}`);
-            return null;
-        }
-        
-        const data = await response.json();
-        const taxa = data?._embedded?.taxa || [];
-        
-        // Chercher une correspondance exacte
-        const exactMatch = taxa.find(t => t.scientificName === cleanName);
-        if (exactMatch) {
-            console.log(`Trouvé (exact): ${exactMatch.scientificName} (ID: ${exactMatch.id})`);
-            return exactMatch;
-        }
-        
-        // Sinon prendre le premier résultat
-        if (taxa.length > 0) {
-            console.log(`Trouvé (approx): ${taxa[0].scientificName} (ID: ${taxa[0].id})`);
-            return taxa[0];
-        }
-        
-        console.log(`Aucun résultat pour: ${cleanName}`);
-        return null;
-        
-    } catch (error) {
-        console.error(`Erreur lors de la recherche de ${scientificName}:`, error);
-        return null;
-    }
-}
-
-// Fonction pour récupérer les statuts en colonnes pour plusieurs taxons
-async function getStatusesForTaxa(taxonIds, locationId = null) {
-    try {
-        if (taxonIds.length === 0) return {};
-        
-        // Construire l'URL avec les paramètres
-        const params = new URLSearchParams();
-        taxonIds.forEach(id => params.append('taxrefId', id));
-        if (locationId) {
-            params.append('locationId', locationId);
-        }
-        params.append('size', '1000');
-        
-        const url = `${API_BASE}/status/search/columns?${params}`;
-        console.log(`Récupération des statuts pour ${taxonIds.length} taxons`);
-        
-        const response = await fetch(url, { headers: HEADERS });
-        
-        if (!response.ok) {
-            console.error(`Erreur API statuts: ${response.status}`);
-            // Si 404, c'est qu'il n'y a pas de statuts pour ces taxons
-            if (response.status === 404) {
-                return {};
-            }
-            return {};
-        }
-        
-        const data = await response.json();
-        
-        // La structure de la réponse selon la doc
-        const statuses = data?._embedded?.taxonStatuses || [];
-        
-        // Créer un objet avec les statuts par taxon ID
-        const statusByTaxonId = {};
-        
-        statuses.forEach(status => {
-            const taxonId = status.taxon?.id;
-            if (taxonId) {
-                statusByTaxonId[taxonId] = {
-                    // Listes rouges
-                    lrm: status.worldRedList || '',
-                    lre: status.europeanRedList || '',
-                    lrn: status.nationalRedList || '',
-                    lrr: status.localRedList || '',
-                    // Protections
-                    pn: status.nationalProtection || '',
-                    pr: status.regionalProtection || '',
-                    pd: status.departementalProtection || '',
-                    // Directives
-                    dh: status.hffDirective || '',
-                    do: status.birdDirective || '',
-                    // Conventions
-                    bern: status.bernConvention || '',
-                    bonn: status.bonnConvention || '',
-                    // ZNIEFF
-                    zdet: status.determinanteZnieff || ''
-                };
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+                "Accept": "application/hal+json;version=1",
+                ...options.headers
             }
         });
-        
-        console.log(`Statuts trouvés pour ${Object.keys(statusByTaxonId).length} taxons`);
-        return statusByTaxonId;
-        
+        clearTimeout(timeoutId);
+        return response;
     } catch (error) {
-        console.error('Erreur lors de la récupération des statuts:', error);
-        return {};
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('Timeout de la requête');
+        }
+        throw error;
     }
 }
 
-// Handler principal
+// Handler principal - SIMPLIFIÉ AU MAXIMUM
 exports.handler = async function(event, context) {
-    console.log('Début du traitement de la requête');
+    // Log pour debug
+    console.log('Requête reçue:', event.httpMethod);
     
+    // Vérifier la méthode
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ error: 'Method Not Allowed' })
         };
     }
     
     try {
-        const { scientific_names, locationId } = JSON.parse(event.body);
+        // Parser le body
+        const body = JSON.parse(event.body);
+        const { scientific_names, locationId } = body;
         
-        if (!scientific_names || !Array.isArray(scientific_names) || scientific_names.length === 0) {
+        console.log(`Traitement de ${scientific_names?.length || 0} noms`);
+        
+        // Validation basique
+        if (!scientific_names || !Array.isArray(scientific_names)) {
             return {
                 statusCode: 400,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ error: 'Liste de noms scientifiques requise' })
+                body: JSON.stringify({ error: 'Liste de noms requise' })
             };
         }
         
-        console.log(`Traitement de ${scientific_names.length} noms scientifiques`);
-        if (locationId) {
-            console.log(`Localisation: ${locationId}`);
-        }
+        // Limiter à 5 noms maximum par requête pour éviter les timeouts
+        const namesToProcess = scientific_names.slice(0, 5);
         
-        // Étape 1: Rechercher tous les taxons
-        const searchPromises = scientific_names.map(name => searchTaxon(name));
-        const searchResults = await Promise.all(searchPromises);
+        // Résultats
+        const results = [];
         
-        // Créer un mapping nom -> résultat de recherche
-        const resultsByName = {};
-        scientific_names.forEach((name, index) => {
-            resultsByName[name] = searchResults[index];
-        });
-        
-        // Collecter les IDs des taxons trouvés
-        const foundTaxonIds = [];
-        const taxonIdToName = {};
-        
-        Object.entries(resultsByName).forEach(([originalName, taxon]) => {
-            if (taxon && taxon.id) {
-                foundTaxonIds.push(taxon.id);
-                taxonIdToName[taxon.id] = {
-                    originalName,
-                    scientificName: taxon.scientificName
+        // Traiter chaque nom individuellement
+        for (const name of namesToProcess) {
+            try {
+                console.log(`Traitement de: ${name}`);
+                
+                // 1. Rechercher le taxon
+                const searchUrl = `${API_BASE}/taxa/search?q=${encodeURIComponent(name)}&size=1`;
+                const searchResp = await fetchWithTimeout(searchUrl);
+                
+                if (!searchResp.ok) {
+                    results.push({
+                        "Nom scientifique": name,
+                        "ID Taxon (cd_nom)": "",
+                        "Erreur": "Erreur recherche"
+                    });
+                    continue;
+                }
+                
+                const searchData = await searchResp.json();
+                const taxa = searchData?._embedded?.taxa || [];
+                
+                if (taxa.length === 0) {
+                    results.push({
+                        "Nom scientifique": name,
+                        "ID Taxon (cd_nom)": "",
+                        "Erreur": "Non trouvé"
+                    });
+                    continue;
+                }
+                
+                const taxon = taxa[0];
+                
+                // 2. Créer l'objet résultat de base
+                const result = {
+                    "Nom scientifique": taxon.scientificName,
+                    "ID Taxon (cd_nom)": taxon.id,
+                    "Erreur": "",
+                    "lrm": "",
+                    "lre": "",
+                    "lrn": "",
+                    "lrr": "",
+                    "pn": "",
+                    "pr": "",
+                    "pd": "",
+                    "dh": "",
+                    "do": "",
+                    "bern": "",
+                    "bonn": "",
+                    "zdet": ""
                 };
-            }
-        });
-        
-        console.log(`${foundTaxonIds.length} taxons trouvés sur ${scientific_names.length}`);
-        
-        // Étape 2: Récupérer les statuts pour tous les taxons trouvés
-        const statusesByTaxonId = await getStatusesForTaxa(foundTaxonIds, locationId);
-        
-        // Étape 3: Construire la réponse finale
-        const results = scientific_names.map(originalName => {
-            const taxon = resultsByName[originalName];
-            
-            if (!taxon) {
-                // Taxon non trouvé
-                return {
-                    "Nom scientifique": originalName,
+                
+                // 3. Essayer de récupérer les statuts (optionnel)
+                try {
+                    let statusUrl = `${API_BASE}/status/search/columns?taxrefId=${taxon.id}`;
+                    if (locationId) {
+                        statusUrl += `&locationId=${locationId}`;
+                    }
+                    
+                    const statusResp = await fetchWithTimeout(statusUrl);
+                    
+                    if (statusResp.ok) {
+                        const statusData = await statusResp.json();
+                        const statuses = statusData?._embedded?.taxonStatuses || [];
+                        
+                        if (statuses.length > 0) {
+                            const status = statuses[0];
+                            // Mapper les statuts
+                            result.lrm = status.worldRedList || "";
+                            result.lre = status.europeanRedList || "";
+                            result.lrn = status.nationalRedList || "";
+                            result.lrr = status.localRedList || "";
+                            result.pn = status.nationalProtection || "";
+                            result.pr = status.regionalProtection || "";
+                            result.pd = status.departementalProtection || "";
+                            result.dh = status.hffDirective || "";
+                            result.do = status.birdDirective || "";
+                            result.bern = status.bernConvention || "";
+                            result.bonn = status.bonnConvention || "";
+                            result.zdet = status.determinanteZnieff || "";
+                        }
+                    }
+                } catch (statusError) {
+                    // Ignorer les erreurs de statuts, on a déjà les infos de base
+                    console.log(`Erreur statuts pour ${taxon.id}:`, statusError.message);
+                }
+                
+                results.push(result);
+                
+            } catch (error) {
+                console.error(`Erreur pour ${name}:`, error.message);
+                results.push({
+                    "Nom scientifique": name,
                     "ID Taxon (cd_nom)": "",
-                    "Erreur": "Taxon non trouvé"
-                };
+                    "Erreur": "Erreur traitement"
+                });
             }
-            
-            // Récupérer les statuts pour ce taxon
-            const statuses = statusesByTaxonId[taxon.id] || {};
-            
-            // Construire l'objet résultat
-            return {
-                "Nom scientifique": taxon.scientificName,
-                "ID Taxon (cd_nom)": taxon.id,
-                "Erreur": "",
-                ...statuses
-            };
-        });
+        }
         
-        console.log('Envoi de la réponse avec', results.length, 'résultats');
+        // Retourner les résultats
+        console.log(`Envoi de ${results.length} résultats`);
         
         return {
             statusCode: 200,
             headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(results)
         };
         
     } catch (error) {
-        console.error('Erreur dans le handler:', error);
+        console.error('Erreur globale:', error);
         return {
             statusCode: 500,
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 error: 'Erreur serveur',
                 message: error.message 
