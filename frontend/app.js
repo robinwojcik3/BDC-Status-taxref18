@@ -1,3 +1,5 @@
+// Fichier : frontend/app.js (version de diagnostic)
+
 document.addEventListener('DOMContentLoaded', () => {
     // Éléments du DOM
     const generateBtn = document.getElementById('generate-btn');
@@ -11,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentData = [];
     const CHUNK_SIZE = 8;
 
-    // Données de localisation avec codes INSEE purs
     const localisationData = {
         "Auvergne-Rhône-Alpes": { code: "84", departs: { "Ain": "01", "Allier": "03", "Ardèche": "07", "Cantal": "15", "Drôme": "26", "Isère": "38", "Loire": "42", "Haute-Loire": "43", "Puy-de-Dôme": "63", "Rhône": "69", "Savoie": "73", "Haute-Savoie": "74" } },
         "Bourgogne-Franche-Comté": { code: "27", departs: { "Côte-d'Or": "21", "Doubs": "25", "Jura": "39", "Nièvre": "58", "Haute-Saône": "70", "Saône-et-Loire": "71", "Yonne": "89", "Territoire de Belfort": "90" } },
@@ -27,13 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
         "Pays de la Loire": { code: "52", departs: { "Loire-Atlantique": "44", "Maine-et-Loire": "49", "Mayenne": "53", "Sarthe": "72", "Vendée": "85" } },
         "Provence-Alpes-Côte d'Azur": { code: "93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
     };
-    
-    // Logique de l'application (inchangée à part la valeur des options)
+
     function populateRegions() {
         Object.keys(localisationData).sort().forEach(regionName => {
             const option = document.createElement('option');
-            // MODIFICATION : Plus de préfixe "reg:"
-            option.value = localisationData[regionName].code; 
+            option.value = localisationData[regionName].code;
             option.textContent = regionName;
             regionSelect.appendChild(option);
         });
@@ -43,14 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const regionCode = regionSelect.value;
         departementSelect.innerHTML = '<option value="">Toute la région</option>';
         departementSelect.disabled = true;
-
         if (regionCode) {
             const regionName = Object.keys(localisationData).find(key => localisationData[key].code === regionCode);
             if (regionName) {
                 const departments = localisationData[regionName].departs;
                 Object.keys(departments).sort().forEach(deptName => {
                     const option = document.createElement('option');
-                    // MODIFICATION : Plus de préfixe "dep:"
                     option.value = departments[deptName];
                     option.textContent = `${deptName} (${departments[deptName]})`;
                     departementSelect.appendChild(option);
@@ -80,8 +77,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ scientific_names: nameChunks[i], locationId: locationId })
                 });
+
                 if (!response.ok) { throw new Error(`Échec du lot (HTTP ${response.status})`); }
+                
                 const chunkData = await response.json();
+                
+                // ===================================================================
+                // LIGNE DE DIAGNOSTIC 1 : AFFICHER LES DONNÉES BRUTES REÇUES
+                console.log(`Données reçues pour le lot ${i + 1}:`, chunkData);
+                // ===================================================================
+
                 currentData.push(...chunkData);
                 appendDataToTable(chunkData, tbody);
             } catch (err) {
@@ -100,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
         processInChunks(names, locationId);
     });
 
-    // Les fonctions de manipulation de tableau restent identiques
     const colonnesAAfficher = [
         { header: "Liste rouge mondiale", key: "lrm" }, { header: "Liste rouge européenne", key: "lre" },
         { header: "Liste rouge nationale", key: "lrn" }, { header: "Liste rouge régionale", key: "lrr" },
@@ -124,6 +128,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function appendDataToTable(data, tbody) {
+        // ===================================================================
+        // LIGNE DE DIAGNOSTIC 2 : VÉRIFIER QUE LA FONCTION EST APPELÉE
+        console.log("Fonction 'appendDataToTable' appelée avec :", data);
+        // ===================================================================
+        
         data.forEach(row => {
             const tr = document.createElement('tr');
             ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
@@ -140,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (code === 'CR') td.classList.add('status-cr'); else if (code === 'DD') td.classList.add('status-dd');
                 }
                 tr.appendChild(td);
-});
+            });
             tbody.appendChild(tr);
         });
     }
