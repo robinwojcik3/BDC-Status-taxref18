@@ -5,54 +5,6 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const API_BASE = "https://taxref.mnhn.fr/api";
 const HEADERS = { "Accept": "application/hal+json;version=1" };
 
-// Cette fonction traite UN SEUL nom scientifique.
-async function processSingleTaxon(name, locationId) {
-    try {
-        // Étape 1 : Récupérer l'ID du taxon (cd_nom)
-        const searchParams = new URLSearchParams({ q: name });
-        const taxonSearchResp = await fetch(`${API_BASE}/taxa/search?${searchParams}`, { headers: HEADERS });
-        if (!taxonSearchResp.ok) throw new Error(`API TAXREF (search) a échoué`);
-
-        const taxonSearchData = await taxonSearchResp.json();
-        const taxonId = taxonSearchData?._embedded?.taxa?.[0]?.id;
-
-        if (!taxonId) {
-            return { "Nom scientifique": name, "Erreur": "Taxon non trouvé" };
-        }
-
-        // Étape 2 : Récupérer les statuts pour ce taxon, en utilisant le locationId s'il est fourni
-        const statusParams = new URLSearchParams({ taxrefId: taxonId, size: 200 });
-        if (locationId) {
-            // Le paramètre de l'API pour la localité est 'locationId'
-            statusParams.append('locationId', locationId);
-        }
-        
-        const statusResp = await fetch(`${API_BASE}/status/search/lines?${statusParams}`, { headers: HEADERS });
-        if (!statusResp.ok) throw new Error(`API TAXREF (status) a échoué`);
-
-        const statusData = await statusResp.json();
-        const statuses = statusData?._embedded?.taxonStatuses || [];
-
-        // Étape 3 : Agréger les statuts
-        const aggregated_statuses = { "Nom scientifique": name, "ID Taxon (cd_nom)": taxonId };
-        for (const status of statuses) {
-            const statusTypeName = status.statusTypeName || "Statut inconnu";
-            const statusValue = status.statusName || status.statusCode || "Oui";
-            
-            // Pour ne pas écraser les statuts (ex: plusieurs protections régionales)
-            if (!aggregated_statuses[statusTypeName]) {
-                aggregated_statuses[statusTypeName] = statusValue;
-            } else {
-                aggregated_statuses[statusTypeName] += ` ; ${statusValue}`;
-            }
-        }
-        return aggregated_statuses;
-
-    } catch (err) {
-        return { "Nom scientifique": name, "Erreur": err.message };
-    }
-}
-
 // Fonction handler principale que Netlify exécute.
 exports.handler = async function(event, context) {
     if (event.httpMethod !== 'POST') {
@@ -65,21 +17,97 @@ exports.handler = async function(event, context) {
             return { statusCode: 400, body: JSON.stringify({ error: "Le champ 'scientific_names' doit être une liste." }) };
         }
 
-        // Création d'un tableau de promesses. Chaque promesse correspond au traitement d'un taxon.
-        const promises = scientific_names
-            .filter(name => name.trim())
-            .map(name => processSingleTaxon(name, locationId));
+        const validNames = scientific_names.filter(name => name && name.trim());
+        if (validNames.length === 0) {
+            return { statusCode: 200, body: JSON.stringify([]) };
+        }
 
-        // Exécution de toutes les promesses en parallèle.
-        const results = await Promise.all(promises);
+        // ========================================================================
+        // ÉTAPE 1 : OBTENIR TOUS LES ID DE TAXONS EN UN SEUL APPEL API
+        // ========================================================================
+        const searchParams = new URLSearchParams();
+        validNames.forEach(name => searchParams.append('scientificNames', name));
+        searchParams.append('size', validNames.length);
+
+        const taxaSearchResp = await fetch(`${API_BASE}/taxa/search?${searchParams}`, { headers: HEADERS });
+        if (!taxaSearchResp.ok) throw new Error(`L'API TAXREF (recherche taxons) a retourné une erreur ${taxaSearchResp.status}`);
+        
+        const taxaSearchData = await taxaSearchResp.json();
+        const foundTaxa = taxaSearchData?._embedded?.taxa || [];
+
+        // Création d'une table de correspondance : Nom scientifique -> ID
+        const nameToIdMap = new Map();
+        foundTaxa.forEach(taxon => {
+            nameToIdMap.set(taxon.scientificName, taxon.id);
+        });
+
+        const foundIds = Array.from(nameToIdMap.values());
+        
+        // ========================================================================
+        // ÉTAPE 2 : OBTENIR TOUS LES STATUTS EN UN SEUL APPEL API (si des ID ont été trouvés)
+        // ========================================================================
+        let statusesById = {};
+        if (foundIds.length > 0) {
+            const statusParams = new URLSearchParams();
+            foundIds.forEach(id => statusParams.append('taxrefId', id));
+            statusParams.append('size', 500); // Augmenter la taille pour récupérer de nombreux statuts
+            if (locationId) {
+                statusParams.append('locationId', locationId);
+            }
+
+            const statusResp = await fetch(`${API_BASE}/status/search/lines?${statusParams}`, { headers: HEADERS });
+            if (!statusResp.ok) throw new Error(`L'API TAXREF (recherche statuts) a retourné une erreur ${statusResp.status}`);
+
+            const statusData = await statusResp.json();
+            const allStatuses = statusData?._embedded?.taxonStatuses || [];
+
+            // Regrouper les statuts par ID de taxon pour un accès facile
+            allStatuses.forEach(status => {
+                const taxonId = status.taxon.id;
+                if (!statusesById[taxonId]) {
+                    statusesById[taxonId] = [];
+                }
+                statusesById[taxonId].push(status);
+            });
+        }
+        
+        // ========================================================================
+        // ÉTAPE 3 : COMBINER LES RÉSULTATS
+        // ========================================================================
+        const finalResults = validNames.map(name => {
+            const taxonId = nameToIdMap.get(name);
+
+            if (!taxonId) {
+                return { "Nom scientifique": name, "Erreur": "Taxon non trouvé" };
+            }
+
+            const aggregated_statuses = { "Nom scientifique": name, "ID Taxon (cd_nom)": taxonId };
+            const taxonStatuses = statusesById[taxonId] || [];
+
+            for (const status of taxonStatuses) {
+                const statusTypeName = status.statusTypeName || "Statut inconnu";
+                const statusValue = status.statusName || status.statusCode || "Oui";
+                
+                if (!aggregated_statuses[statusTypeName]) {
+                    aggregated_statuses[statusTypeName] = statusValue;
+                } else {
+                    aggregated_statuses[statusTypeName] += ` ; ${statusValue}`;
+                }
+            }
+            return aggregated_statuses;
+        });
 
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(results)
+            body: JSON.stringify(finalResults)
         };
 
     } catch (err) {
-        return { statusCode: 400, body: JSON.stringify({ error: "Corps JSON invalide ou erreur interne." }) };
+        console.error("Erreur dans la fonction serverless:", err);
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ error: `Erreur interne du serveur: ${err.message}` }) 
+        };
     }
 };
