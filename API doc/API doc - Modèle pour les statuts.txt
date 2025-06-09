@@ -1,0 +1,289 @@
+Documentation de l'API
+ 1.0 
+[ Base URL: taxref.mnhn.fr/api ]
+https://taxref.mnhn.fr/api/v2/api-docs
+Cette API diffuse les informations du référentiel national TAXREF (de la version 2.0 à la version 18.0) et de la Base de connaissance associée à la version 18.0.
+
+L'API fournit des réponses sur la nomenclature, la taxonomie, la répartition, les statuts (protections, menaces, N2000, etc) et les interactions biologiques entre espèces. Elle permet également d'accèder à l'ensemble des sources bibliographiques utilisées dans le cadre de TAXREF et de l'INPN (remplacement de l'API docs-web). Les opérations et définitions disponibles sont listées ci-dessous. Cliquez sur une opération pour voir le détail et la tester.
+Cette API, restFul, propose une navigation entre les ressources qu'elle propose. Elle exprime les réponses au format HAL (JSON Hypertext Application Language). La librairie javascript Traverson permet notamment d'interpréter facilement le standard HAL.
+Le versionage de l'API est géré dans le header Accept sous la forme paramétrée : "application/hal+json;version=1".
+
+Pour contacter l'équipe en charge de ce programme, merci de vous rendre à la page de signalement de TAXREF-Web.
+
+Nouveauté pour la version 18.0 :
+
+diffusion de originalNameId (= cd_nom du nom original)
+diffusion de nomenclaturalComments (commentaires nomenclaturaux autrefois contenus dans les auteurs du nom)
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+ColumnStatusResource{
+_links	[...]
+taxon	SimpleTaxon{...}
+requestedLocationId	string
+xml: OrderedMap { "name": "requestedLocationId", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Référence géographique de l'objet demandé
+
+
+xml:
+   name: requestedLocationId
+   attribute: false
+   wrapped: false
+worldRedList	string
+example: CR
+xml: OrderedMap { "name": "worldRedList", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Statut de la Liste rouge mondiale
+
+
+xml:
+   name: worldRedList
+   attribute: false
+   wrapped: false
+europeanRedList	string
+example: CR
+xml: OrderedMap { "name": "europeanRedList", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Statut de la Liste rouge européenne
+
+
+xml:
+   name: europeanRedList
+   attribute: false
+   wrapped: false
+nationalRedList	string
+example: CR
+xml: OrderedMap { "name": "nationalRedList", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Statut de la Liste rouge nationale
+
+
+xml:
+   name: nationalRedList
+   attribute: false
+   wrapped: false
+localRedList	string
+example: CR
+xml: OrderedMap { "name": "localRedList", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Statut de la Liste rouge régionale
+
+
+xml:
+   name: localRedList
+   attribute: false
+   wrapped: false
+bonnConvention	string
+xml: OrderedMap { "name": "bonnConvention", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Convention de Bonn
+
+
+xml:
+   name: bonnConvention
+   attribute: false
+   wrapped: false
+bernConvention	string
+xml: OrderedMap { "name": "bernConvention", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Convention de Bern
+
+
+xml:
+   name: bernConvention
+   attribute: false
+   wrapped: false
+barcelonaConvention	string
+xml: OrderedMap { "name": "barcelonaConvention", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Convention de Barcelonne
+
+
+xml:
+   name: barcelonaConvention
+   attribute: false
+   wrapped: false
+osparConvention	string
+xml: OrderedMap { "name": "osparConvention", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Convention OSPAR
+
+
+xml:
+   name: osparConvention
+   attribute: false
+   wrapped: false
+hffDirective	string
+xml: OrderedMap { "name": "hffDirective", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Directive Habitats-Faune-Flore
+
+
+xml:
+   name: hffDirective
+   attribute: false
+   wrapped: false
+birdDirective	string
+xml: OrderedMap { "name": "birdDirective", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Directive Oiseaux
+
+
+xml:
+   name: birdDirective
+   attribute: false
+   wrapped: false
+nationalProtection	string
+xml: OrderedMap { "name": "nationalProtection", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Protection nationale
+
+
+xml:
+   name: nationalProtection
+   attribute: false
+   wrapped: false
+regionalProtection	string
+xml: OrderedMap { "name": "regionalProtection", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Protection régionale
+
+
+xml:
+   name: regionalProtection
+   attribute: false
+   wrapped: false
+departementalProtection	string
+xml: OrderedMap { "name": "departementalProtection", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Protection départementale
+
+
+xml:
+   name: departementalProtection
+   attribute: false
+   wrapped: false
+overseaProtection	string
+xml: OrderedMap { "name": "overseaProtection", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Protection outre-mer
+
+
+xml:
+   name: overseaProtection
+   attribute: false
+   wrapped: false
+nationalActionPlan	string
+xml: OrderedMap { "name": "nationalActionPlan", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Plan national d'action
+
+
+xml:
+   name: nationalActionPlan
+   attribute: false
+   wrapped: false
+completedNationalActionPlan	string
+xml: OrderedMap { "name": "completedNationalActionPlan", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Plan national d'action terminé
+
+
+xml:
+   name: completedNationalActionPlan
+   attribute: false
+   wrapped: false
+determinanteZnieff	string
+xml: OrderedMap { "name": "determinanteZnieff", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Déterminante ZNIEFF
+
+
+xml:
+   name: determinanteZnieff
+   attribute: false
+   wrapped: false
+scapNationale	string
+xml: OrderedMap { "name": "scapNationale", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Stratégie de Création des Aires Protégées : national
+
+
+xml:
+   name: scapNationale
+   attribute: false
+   wrapped: false
+scapRegionale	string
+xml: OrderedMap { "name": "scapRegionale", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Stratégie de Création des Aires Protégées : régional
+
+
+xml:
+   name: scapRegionale
+   attribute: false
+   wrapped: false
+sensibilite	string
+xml: OrderedMap { "name": "sensibilite", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Sensibilité
+
+
+xml:
+   name: sensibilite
+   attribute: false
+   wrapped: false
+biogeoStatus	string
+xml: OrderedMap { "name": "biogeoStatus", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Statut biogéographique
+
+
+xml:
+   name: biogeoStatus
+   attribute: false
+   wrapped: false
+reglementation	string
+xml: OrderedMap { "name": "reglementation", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Réglementation
+
+
+xml:
+   name: reglementation
+   attribute: false
+   wrapped: false
+noIntroductionReglementation	string
+xml: OrderedMap { "name": "noIntroductionReglementation", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Interdiction d'introduction
+
+
+xml:
+   name: noIntroductionReglementation
+   attribute: false
+   wrapped: false
+invasiveReglementation	string
+xml: OrderedMap { "name": "invasiveReglementation", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Contrôle des espèces envahissantes
+
+
+xml:
+   name: invasiveReglementation
+   attribute: false
+   wrapped: false
+prioriteActionPubliqueNationale	string
+xml: OrderedMap { "name": "prioriteActionPubliqueNationale", "attribute": false, "wrapped": false }
+allowEmptyValue: false
+Espèces prioritires pour l'action publique
+
+
+xml:
+   name: prioriteActionPubliqueNationale
+   attribute: false
+   wrapped: false
+}

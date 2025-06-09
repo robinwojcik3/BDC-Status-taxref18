@@ -1,0 +1,614 @@
+Documentation de l'API
+ 1.0 
+[ Base URL: taxref.mnhn.fr/api ]
+https://taxref.mnhn.fr/api/v2/api-docs
+Cette API diffuse les informations du référentiel national TAXREF (de la version 2.0 à la version 18.0) et de la Base de connaissance associée à la version 18.0.
+
+L'API fournit des réponses sur la nomenclature, la taxonomie, la répartition, les statuts (protections, menaces, N2000, etc) et les interactions biologiques entre espèces. Elle permet également d'accèder à l'ensemble des sources bibliographiques utilisées dans le cadre de TAXREF et de l'INPN (remplacement de l'API docs-web). Les opérations et définitions disponibles sont listées ci-dessous. Cliquez sur une opération pour voir le détail et la tester.
+Cette API, restFul, propose une navigation entre les ressources qu'elle propose. Elle exprime les réponses au format HAL (JSON Hypertext Application Language). La librairie javascript Traverson permet notamment d'interpréter facilement le standard HAL.
+Le versionage de l'API est géré dans le header Accept sous la forme paramétrée : "application/hal+json;version=1".
+
+Pour contacter l'équipe en charge de ce programme, merci de vous rendre à la page de signalement de TAXREF-Web.
+
+Nouveauté pour la version 18.0 :
+
+diffusion de originalNameId (= cd_nom du nom original)
+diffusion de nomenclaturalComments (commentaires nomenclaturaux autrefois contenus dans les auteurs du nom)
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+3. Statuts
+Protections juridiques, Directives, Listes rouges, Interdictions d'introduction, statuts biogéographiques de TAXREF, ZNIEFF Déterminantes etc.
+
+
+
+GET
+/status/findByOperationalGroup/{id}
+Obtenir tous les statuts des taxons d'un groupe opérationnel
+Parameters
+Try it out
+Name	Description
+id *
+integer($int32)
+(path)
+Identifiant du groupe opérationnel
+
+id
+page
+integer($int32)
+(query)
+Numéro de la page désirée
+
+Default value : 1
+
+1
+size
+integer($int32)
+(query)
+Nombre d'enregistrements sur une page (maximum 10000)
+
+Default value : 10000
+
+10000
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_embedded": [
+    {
+      "_links": [
+        {
+          "deprecation": "string",
+          "href": "string",
+          "hreflang": "string",
+          "media": "string",
+          "rel": "string",
+          "templated": true,
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      "taxon": {
+        "id": 0,
+        "scientificName": "string",
+        "fullNameHtml": "string",
+        "referenceId": 0,
+        "parentId": 0,
+        "referenceNameHtml": "string"
+      },
+      "locationId": "INSEEC77186",
+      "locationName": "Fontainebleau",
+      "statusTypeName": "string",
+      "locationAdminLevel": "Commune",
+      "statusCode": "string",
+      "statusTypeGroup": "string",
+      "statusName": "string",
+      "statusRemarks": "string",
+      "source": "string",
+      "sourceId": 0,
+      "requestedLocationId": "string",
+      "listedName": "string"
+    }
+  ],
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 0,
+    "totalElements": 0,
+    "totalPages": 0
+  }
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
+
+
+GET
+/status/findByType/{id}
+Obtenir tous les statuts liés à un type de statut
+Parameters
+Try it out
+Name	Description
+id *
+string
+(path)
+Identifiant du statut
+
+id
+page
+integer($int32)
+(query)
+Numéro de la page désirée
+
+Default value : 1
+
+1
+size
+integer($int32)
+(query)
+Nombre d'enregistrements sur une page (maximum 10000)
+
+Default value : 10000
+
+10000
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_embedded": [
+    {
+      "_links": [
+        {
+          "deprecation": "string",
+          "href": "string",
+          "hreflang": "string",
+          "media": "string",
+          "rel": "string",
+          "templated": true,
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      "taxon": {
+        "id": 0,
+        "scientificName": "string",
+        "fullNameHtml": "string",
+        "referenceId": 0,
+        "parentId": 0,
+        "referenceNameHtml": "string"
+      },
+      "locationId": "INSEEC77186",
+      "locationName": "Fontainebleau",
+      "statusTypeName": "string",
+      "locationAdminLevel": "Commune",
+      "statusCode": "string",
+      "statusTypeGroup": "string",
+      "statusName": "string",
+      "statusRemarks": "string",
+      "source": "string",
+      "sourceId": 0,
+      "requestedLocationId": "string",
+      "listedName": "string"
+    }
+  ],
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 0,
+    "totalElements": 0,
+    "totalPages": 0
+  }
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
+
+
+GET
+/status/search/columns
+Obtenir tous les statuts liés à un ensemble de critères : liste de taxrefId, type de statut, zone d'application. Les résultats sont obtenus en colonnes
+Parameters
+Try it out
+Name	Description
+taxrefId
+array[integer]
+(query)
+taxrefId
+
+operationalGroupId
+integer($int32)
+(query)
+operationalGroupId
+
+operationalGroupId
+locationId
+string
+(query)
+locationId
+
+locationId
+latitude
+number($double)
+(query)
+latitude
+
+latitude
+longitude
+number($double)
+(query)
+longitude
+
+longitude
+page
+integer($int32)
+(query)
+Numéro de la page désirée
+
+Default value : 1
+
+1
+size
+integer($int32)
+(query)
+Nombre d'enregistrements sur une page (maximum 10000)
+
+Default value : 10000
+
+10000
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_embedded": [
+    {
+      "_links": [
+        {
+          "deprecation": "string",
+          "href": "string",
+          "hreflang": "string",
+          "media": "string",
+          "rel": "string",
+          "templated": true,
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      "taxon": {
+        "id": 0,
+        "scientificName": "string",
+        "fullNameHtml": "string",
+        "referenceId": 0,
+        "parentId": 0,
+        "referenceNameHtml": "string"
+      },
+      "requestedLocationId": "string",
+      "worldRedList": "CR",
+      "europeanRedList": "CR",
+      "nationalRedList": "CR",
+      "localRedList": "CR",
+      "bonnConvention": "string",
+      "bernConvention": "string",
+      "barcelonaConvention": "string",
+      "osparConvention": "string",
+      "hffDirective": "string",
+      "birdDirective": "string",
+      "nationalProtection": "string",
+      "regionalProtection": "string",
+      "departementalProtection": "string",
+      "overseaProtection": "string",
+      "nationalActionPlan": "string",
+      "completedNationalActionPlan": "string",
+      "determinanteZnieff": "string",
+      "scapNationale": "string",
+      "scapRegionale": "string",
+      "sensibilite": "string",
+      "biogeoStatus": "string",
+      "reglementation": "string",
+      "noIntroductionReglementation": "string",
+      "invasiveReglementation": "string",
+      "prioriteActionPubliqueNationale": "string"
+    }
+  ],
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 0,
+    "totalElements": 0,
+    "totalPages": 0
+  }
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
+
+
+GET
+/status/search/lines
+Obtenir tous les statuts liés à un ensemble de critères : liste de cdNom, type de statut, zone d'application. Les résultats sont obtenus en lignes
+Parameters
+Try it out
+Name	Description
+taxrefId
+array[integer]
+(query)
+taxrefId
+
+statusTypeId
+string
+(query)
+statusTypeId
+
+statusTypeId
+operationalGroupId
+integer($int32)
+(query)
+operationalGroupId
+
+operationalGroupId
+locationId
+string
+(query)
+locationId
+
+locationId
+latitude
+number($double)
+(query)
+latitude
+
+latitude
+longitude
+number($double)
+(query)
+longitude
+
+longitude
+page
+integer($int32)
+(query)
+Numéro de la page désirée
+
+Default value : 1
+
+1
+size
+integer($int32)
+(query)
+Nombre d'enregistrements sur une page (maximum 10000)
+
+Default value : 10000
+
+10000
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_embedded": [
+    {
+      "_links": [
+        {
+          "deprecation": "string",
+          "href": "string",
+          "hreflang": "string",
+          "media": "string",
+          "rel": "string",
+          "templated": true,
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      "taxon": {
+        "id": 0,
+        "scientificName": "string",
+        "fullNameHtml": "string",
+        "referenceId": 0,
+        "parentId": 0,
+        "referenceNameHtml": "string"
+      },
+      "locationId": "INSEEC77186",
+      "locationName": "Fontainebleau",
+      "statusTypeName": "string",
+      "locationAdminLevel": "Commune",
+      "statusCode": "string",
+      "statusTypeGroup": "string",
+      "statusName": "string",
+      "statusRemarks": "string",
+      "source": "string",
+      "sourceId": 0,
+      "requestedLocationId": "string",
+      "listedName": "string"
+    }
+  ],
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 0,
+    "totalElements": 0,
+    "totalPages": 0
+  }
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
+
+
+GET
+/status/types
+Liste de tous les statuts disponibles dans la base de connaissance
+Parameters
+Try it out
+No parameters
+
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_embedded": [
+    {
+      "_links": [
+        {
+          "deprecation": "string",
+          "href": "string",
+          "hreflang": "string",
+          "media": "string",
+          "rel": "string",
+          "templated": true,
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      "id": "string",
+      "name": "string",
+      "group": "string"
+    }
+  ],
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ]
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
+
+
+GET
+/status/types/{id}
+Obtenir un statut disponible dans la base de connaissance
+Parameters
+Try it out
+Name	Description
+id *
+string
+(path)
+id
+
+id
+Responses
+Response content type
+
+application/hal+json;version=1
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "_links": [
+    {
+      "deprecation": "string",
+      "href": "string",
+      "hreflang": "string",
+      "media": "string",
+      "rel": "string",
+      "templated": true,
+      "title": "string",
+      "type": "string"
+    }
+  ],
+  "id": "string",
+  "name": "string",
+  "group": "string"
+}
+401	
+Unauthorized
+
+403	
+Forbidden
+
+404	
+Not Found
