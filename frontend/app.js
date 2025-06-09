@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ... (code from Task 3.1 is assumed here) ...
     const generateBtn = document.getElementById('generate-btn');
     const exportBtn = document.getElementById('export-btn');
     const taxonInput = document.getElementById('taxon-input');
@@ -8,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentData = []; // Store the last successful dataset for export
 
     generateBtn.addEventListener('click', async () => {
+        // ... (code from Task 3.1) ...
         // 1. Reset UI
         resultContainer.innerHTML = '';
         exportBtn.classList.add('hidden');
@@ -53,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function displayResults(data) {
+        // ... (code from Task 3.1) ...
         resultContainer.innerHTML = '';
         if (!Array.isArray(data) || data.length === 0) {
             statusContainer.innerHTML = '<p>Aucun résultat à afficher.</p>';
@@ -107,5 +110,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show the export button
         exportBtn.classList.remove('hidden');
+    }
+
+    function exportToCsv(data, filename) {
+        if (data.length === 0) return;
+
+        // Collect all possible headers from the data
+        const allHeaders = new Set();
+        data.forEach(row => {
+            Object.keys(row).forEach(key => allHeaders.add(key));
+        });
+        
+        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur"];
+        const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
+        
+        const replacer = (key, value) => value === null ? '' : value;
+        
+        const csvRows = data.map(row => 
+            headers.map(fieldName => 
+                JSON.stringify(row[fieldName] || '', replacer)
+            ).join(',')
+        );
+        
+        const csvString = [headers.join(','), ...csvRows].join('\r\n');
+        
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     }
 });
