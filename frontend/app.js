@@ -1,57 +1,110 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- ÉLÉMENTS DU DOM ---
     const generateBtn = document.getElementById('generate-btn');
     const exportBtn = document.getElementById('export-btn');
     const taxonInput = document.getElementById('taxon-input');
     const statusContainer = document.getElementById('status-message');
     const resultContainer = document.getElementById('result-container');
+    const regionSelect = document.getElementById('region-select');
+    const departementSelect = document.getElementById('departement-select');
 
-    let currentData = []; // Store the last successful dataset for export
+    let currentData = []; // Stocke les données pour l'export
 
+    // --- DONNÉES DE LOCALISATION (Régions et départements avec codes INSEE) ---
+    // Source: Découpage administratif français. Les codes sont essentiels pour l'API.
+    const localisationData = {
+        "Auvergne-Rhône-Alpes": { code: "R84", departs: { "Ain": "01", "Allier": "03", "Ardèche": "07", "Cantal": "15", "Drôme": "26", "Isère": "38", "Loire": "42", "Haute-Loire": "43", "Puy-de-Dôme": "63", "Rhône": "69", "Savoie": "73", "Haute-Savoie": "74" } },
+        "Bourgogne-Franche-Comté": { code: "R27", departs: { "Côte-d'Or": "21", "Doubs": "25", "Jura": "39", "Nièvre": "58", "Haute-Saône": "70", "Saône-et-Loire": "71", "Yonne": "89", "Territoire de Belfort": "90" } },
+        "Bretagne": { code: "R53", departs: { "Côtes-d'Armor": "22", "Finistère": "29", "Ille-et-Vilaine": "35", "Morbihan": "56" } },
+        "Centre-Val de Loire": { code: "R24", departs: { "Cher": "18", "Eure-et-Loir": "28", "Indre": "36", "Indre-et-Loire": "37", "Loir-et-Cher": "41", "Loiret": "45" } },
+        "Corse": { code: "R94", departs: { "Corse-du-Sud": "2A", "Haute-Corse": "2B" } },
+        "Grand Est": { code: "R44", departs: { "Ardennes": "08", "Aube": "10", "Marne": "51", "Haute-Marne": "52", "Meurthe-et-Moselle": "54", "Meuse": "55", "Moselle": "57", "Bas-Rhin": "67", "Haut-Rhin": "68", "Vosges": "88" } },
+        "Hauts-de-France": { code: "R32", departs: { "Aisne": "02", "Nord": "59", "Oise": "60", "Pas-de-Calais": "62", "Somme": "80" } },
+        "Île-de-France": { code: "R11", departs: { "Paris": "75", "Seine-et-Marne": "77", "Yvelines": "78", "Essonne": "91", "Hauts-de-Seine": "92", "Seine-Saint-Denis": "93", "Val-de-Marne": "94", "Val-d'Oise": "95" } },
+        "Normandie": { code: "R28", departs: { "Calvados": "14", "Eure": "27", "Manche": "50", "Orne": "61", "Seine-Maritime": "76" } },
+        "Nouvelle-Aquitaine": { code: "R75", departs: { "Charente": "16", "Charente-Maritime": "17", "Corrèze": "19", "Creuse": "23", "Dordogne": "24", "Gironde": "33", "Landes": "40", "Lot-et-Garonne": "47", "Pyrénées-Atlantiques": "64", "Deux-Sèvres": "79", "Vienne": "86", "Haute-Vienne": "87" } },
+        "Occitanie": { code: "R76", departs: { "Ariège": "09", "Aude": "11", "Aveyron": "12", "Gard": "30", "Haute-Garonne": "31", "Gers": "32", "Hérault": "34", "Lot": "46", "Lozère": "48", "Hautes-Pyrénées": "65", "Pyrénées-Orientales": "66", "Tarn": "81", "Tarn-et-Garonne": "82" } },
+        "Pays de la Loire": { code: "R52", departs: { "Loire-Atlantique": "44", "Maine-et-Loire": "49", "Mayenne": "53", "Sarthe": "72", "Vendée": "85" } },
+        "Provence-Alpes-Côte d'Azur": { code: "R93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
+    };
+
+    // --- LOGIQUE DE L'APPLICATION ---
+
+    // Initialisation des menus déroulants
+    function populateRegions() {
+        Object.keys(localisationData).sort().forEach(regionName => {
+            const option = document.createElement('option');
+            option.value = localisationData[regionName].code;
+            option.textContent = regionName;
+            regionSelect.appendChild(option);
+        });
+    }
+
+    // Mise à jour des départements quand une région est choisie
+    regionSelect.addEventListener('change', () => {
+        const regionCode = regionSelect.value;
+        // Vide et désactive le menu des départements
+        departementSelect.innerHTML = '<option value="">Toute la région</option>';
+        departementSelect.disabled = true;
+
+        if (regionCode) {
+            const regionName = Object.keys(localisationData).find(key => localisationData[key].code === regionCode);
+            if (regionName) {
+                const departments = localisationData[regionName].departs;
+                Object.keys(departments).sort().forEach(deptName => {
+                    const option = document.createElement('option');
+                    option.value = departments[deptName];
+                    option.textContent = `${deptName} (${departments[deptName]})`;
+                    departementSelect.appendChild(option);
+                });
+                departementSelect.disabled = false;
+            }
+        }
+    });
+
+    // Événement principal : Clic sur "Générer"
     generateBtn.addEventListener('click', async () => {
-        // 1. Reset UI
         resultContainer.innerHTML = '';
         exportBtn.classList.add('hidden');
-        statusContainer.innerHTML = '<div class="spinner"></div>'; // Show spinner
+        statusContainer.innerHTML = '<div class="spinner"></div>';
 
-        const names = taxonInput.value.split(/\n+/).map(s => s.trim()).filter(Boolean);
+        const names = taxonInput.value.split(/\n+/).map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean);
         if (names.length === 0) {
             statusContainer.innerHTML = '<p class="error-message">Veuillez saisir au moins un nom de taxon.</p>';
             return;
         }
 
+        // Détermine le locationId à envoyer
+        let locationId = departementSelect.value ? `dep:${departementSelect.value}` : (regionSelect.value ? `reg:${regionSelect.value}` : null);
+        
         try {
-            // 2. Fetch data from the new serverless function endpoint
             const response = await fetch('/api/generer-tableau', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ scientific_names: names })
+                body: JSON.stringify({
+                    scientific_names: names,
+                    locationId: locationId // Envoi de l'ID de localisation
+                })
             });
 
+            statusContainer.innerHTML = ''; // Cache le spinner
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Erreur HTTP: ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
             }
 
             const data = await response.json();
-            currentData = data; // Save data for export
-
-            // 3. Display results
-            statusContainer.innerHTML = ''; // Clear spinner
+            currentData = data;
             displayResults(data);
 
         } catch (err) {
             console.error(err);
             statusContainer.innerHTML = `<p class="error-message">Une erreur est survenue : ${err.message}</p>`;
-            resultContainer.innerHTML = '';
         }
     });
 
-    exportBtn.addEventListener('click', () => {
-        if (currentData.length > 0) {
-            exportToCsv(currentData, 'export-statuts-taxref.csv');
-        }
-    });
-
+    // Le reste des fonctions (displayResults, exportToCsv) reste identique.
+    // ... (Coller ici les fonctions displayResults et exportToCsv de la version précédente) ...
     function displayResults(data) {
         resultContainer.innerHTML = '';
         if (!Array.isArray(data) || data.length === 0) {
@@ -65,11 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
             Object.keys(row).forEach(key => allHeaders.add(key));
         });
 
-        // Define a preferred header order
-        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur"];
+        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur", "Liste rouge régionale", "Liste rouge nationale", "Protection nationale"];
         const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
         
-        // Create table header
         const thead = document.createElement('thead');
         const trHead = document.createElement('tr');
         headers.forEach(key => {
@@ -80,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         thead.appendChild(trHead);
         table.appendChild(thead);
 
-        // Create table body
         const tbody = document.createElement('tbody');
         data.forEach(row => {
             const tr = document.createElement('tr');
@@ -88,15 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const td = document.createElement('td');
                 const val = row[key];
                 td.textContent = val === null || val === undefined ? '' : val;
-
-                // Conditional formatting for Red List statuses
                 if (key.toLowerCase().includes('liste rouge')) {
                     if (val === 'LC') td.classList.add('status-lc');
-                    if (val === 'EN') td.classList.add('status-en');
-                    if (val === 'CR') td.classList.add('status-cr');
-                    if (val === 'VU') td.classList.add('status-vu');
-                    if (val === 'NT') td.classList.add('status-nt');
-                    if (val === 'DD') td.classList.add('status-dd');
+                    else if (val === 'NT') td.classList.add('status-nt');
+                    else if (val === 'VU') td.classList.add('status-vu');
+                    else if (val === 'EN') td.classList.add('status-en');
+                    else if (val === 'CR') td.classList.add('status-cr');
+                    else if (val === 'DD') td.classList.add('status-dd');
                 }
                 tr.appendChild(td);
             });
@@ -105,43 +153,29 @@ document.addEventListener('DOMContentLoaded', () => {
         table.appendChild(tbody);
         resultContainer.appendChild(table);
 
-        // Show the export button
         exportBtn.classList.remove('hidden');
     }
 
     function exportToCsv(data, filename) {
         if (data.length === 0) return;
-
-        // Collect all possible headers from the data
         const allHeaders = new Set();
-        data.forEach(row => {
-            Object.keys(row).forEach(key => allHeaders.add(key));
-        });
-        
-        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur"];
+        data.forEach(row => Object.keys(row).forEach(key => allHeaders.add(key)));
+        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur", "Liste rouge régionale", "Liste rouge nationale", "Protection nationale"];
         const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
-        
         const replacer = (key, value) => value === null ? '' : value;
-        
-        const csvRows = data.map(row => 
-            headers.map(fieldName => 
-                JSON.stringify(row[fieldName] || '', replacer)
-            ).join(',')
-        );
-        
+        const csvRows = data.map(row => headers.map(fieldName => JSON.stringify(row[fieldName] || '', replacer)).join(','));
         const csvString = [headers.join(','), ...csvRows].join('\r\n');
-        
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-        
+        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
         const link = document.createElement('a');
-        if (link.download !== undefined) {
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', filename);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
+
+    // Lancement de l'initialisation
+    populateRegions();
 });
