@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Afficher un message de début
         statusContainer.textContent = `Début du traitement de ${names.length} taxons...`;
+        statusContainer.classList.remove('error-message');
         
         const table = createTableStructure();
         resultContainer.appendChild(table);
@@ -72,32 +73,73 @@ document.addEventListener('DOMContentLoaded', () => {
             nameChunks.push(names.slice(i, i + CHUNK_SIZE));
         }
 
+        let totalErrors = 0;
+
         for (let i = 0; i < nameChunks.length; i++) {
             statusContainer.textContent = `Traitement du lot ${i + 1} sur ${nameChunks.length}...`;
-            try {
-                const response = await fetch('/api/generer-tableau', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scientific_names: nameChunks[i], locationId: locationId })
-                });
-                
-                if (!response.ok) { 
-                    throw new Error(`Échec du lot (HTTP ${response.status})`); 
+            
+            let retries = 3;
+            let success = false;
+            
+            while (retries > 0 && !success) {
+                try {
+                    const response = await fetch('/api/generer-tableau', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            scientific_names: nameChunks[i], 
+                            locationId: locationId 
+                        }),
+                        // Ajouter un timeout côté client
+                        signal: AbortSignal.timeout(30000) // 30 secondes
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+                    }
+                    
+                    const chunkData = await response.json();
+                    console.log(`Lot ${i + 1} reçu:`, chunkData);
+                    
+                    currentData.push(...chunkData);
+                    appendDataToTable(chunkData, tbody);
+                    success = true;
+                    
+                } catch (err) {
+                    retries--;
+                    
+                    if (retries === 0) {
+                        totalErrors++;
+                        console.error('Erreur après 3 tentatives:', err);
+                        
+                        // Ajouter une ligne d'erreur pour ce lot
+                        const errorRow = nameChunks[i].map(name => ({
+                            'Nom scientifique': name,
+                            'Erreur': 'Erreur serveur - Réessayez plus tard'
+                        }));
+                        currentData.push(...errorRow);
+                        appendDataToTable(errorRow, tbody);
+                        
+                        statusContainer.textContent = `Erreur sur le lot ${i + 1}. Poursuite du traitement...`;
+                        statusContainer.classList.add('error-message');
+                    } else {
+                        console.log(`Tentative ${4 - retries}/3 échouée, nouvelle tentative...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre 2 secondes
+                    }
                 }
-                
-                const chunkData = await response.json();
-                console.log(`Lot ${i + 1} reçu:`, chunkData); // Debug
-                
-                currentData.push(...chunkData);
-                appendDataToTable(chunkData, tbody);
-                
-            } catch (err) {
-                statusContainer.textContent = `Une erreur est survenue sur le lot ${i + 1}: ${err.message}`;
-                console.error('Erreur détaillée:', err);
             }
         }
         
-        statusContainer.textContent = `Terminé. ${currentData.length} résultats obtenus sur ${names.length} taxons traités.`;
+        const successCount = currentData.filter(d => !d.Erreur).length;
+        
+        if (totalErrors > 0) {
+            statusContainer.textContent = `Terminé avec des erreurs. ${successCount} taxons traités avec succès sur ${names.length}.`;
+            statusContainer.classList.add('error-message');
+        } else {
+            statusContainer.textContent = `Terminé. ${successCount} taxons traités avec succès sur ${names.length}.`;
+            statusContainer.classList.remove('error-message');
+        }
         
         if (currentData.length > 0) { 
             exportBtn.classList.remove('hidden'); 
