@@ -1,13 +1,13 @@
 // Fichier : netlify/functions/generer-tableau.js
-// VERSION DE PRODUCTION FINALE
+// VERSION DE PRODUCTION FINALE ET STABILISÉE
 
-// Chargement stable de la bibliothèque node-fetch v2
+// Chargement de la bibliothèque node-fetch v2, plus compatible
 const fetch = require('node-fetch');
 
 const API_BASE = "https://taxref.mnhn.fr/api";
 const HEADERS = { "Accept": "application/hal+json;version=1" };
 
-// Dictionnaire de correspondance pour standardiser les clés de statuts.
+// Dictionnaire de correspondance pour standardiser les clés de statuts
 const STATUS_TYPE_MAP = {
     "Liste rouge mondiale UICN": "lrm", "Liste rouge européenne UICN": "lre",
     "Liste rouge nationale UICN": "lrn", "Liste rouge régionale": "lrr",
@@ -18,20 +18,20 @@ const STATUS_TYPE_MAP = {
     "Réglementation des espèces exotiques envahissantes": "regl"
 };
 
-// Fonction isolée pour traiter un seul taxon, pour la robustesse
-async function processSingleTaxon(name) {
+// Fonction isolée pour traiter la recherche d'un seul taxon
+async function findSingleTaxon(name) {
     const cleanName = name.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!cleanName) return null;
+    if (!cleanName) return { originalName: name, found: false, error: "Nom vide" };
     
     try {
         const searchParams = new URLSearchParams({ q: cleanName });
         const resp = await fetch(`${API_BASE}/taxa/search?${searchParams}`, { headers: HEADERS });
-        if (!resp.ok) return { originalName: name, error: `API Taxon (HTTP ${resp.status})` };
+        if (!resp.ok) return { originalName: name, found: false, error: `API Taxon (HTTP ${resp.status})` };
         
         const data = await resp.json();
         const taxon = data?._embedded?.taxa?.[0];
         
-        if (!taxon) return { originalName: name, error: "Taxon non trouvé" };
+        if (!taxon) return { originalName: name, found: false, error: "Taxon non trouvé" };
         
         return { 
             originalName: name, 
@@ -40,7 +40,8 @@ async function processSingleTaxon(name) {
             scientificName: taxon.scientificName 
         };
     } catch (e) {
-        return { originalName: name, error: "Erreur recherche taxon" };
+        console.error(`Erreur recherche pour ${name}:`, e);
+        return { originalName: name, found: false, error: "Erreur réseau" };
     }
 }
 
@@ -50,19 +51,19 @@ exports.handler = async function(event, context) {
     try {
         const { scientific_names, locationId } = JSON.parse(event.body);
         
-        // Étape 1 : Recherche fiable de tous les taxons en parallèle
-        const searchPromises = (scientific_names || []).map(name => processSingleTaxon(name));
-        const taxaResults = (await Promise.all(searchPromises)).filter(Boolean);
+        // 1. Recherche de tous les taxons en parallèle pour la fiabilité
+        const searchPromises = (scientific_names || []).map(name => findSingleTaxon(name));
+        const taxaResults = await Promise.all(searchPromises);
 
         const foundTaxa = taxaResults.filter(t => t.found);
         const foundIds = foundTaxa.map(t => t.id);
 
-        // Étape 2 : Récupération en un bloc de tous les statuts
+        // 2. Récupération en un seul appel de tous les statuts pour les taxons trouvés
         let statusesById = {};
         if (foundIds.length > 0) {
             const statusParams = new URLSearchParams();
             foundIds.forEach(id => statusParams.append('taxrefId', id));
-            statusParams.append('size', foundIds.length * 20); // Assez large
+            statusParams.append('size', foundIds.length * 20);
             if (locationId) statusParams.append('locationId', locationId);
 
             const statusResp = await fetch(`${API_BASE}/status/search/lines?${statusParams}`, { headers: HEADERS });
@@ -78,9 +79,11 @@ exports.handler = async function(event, context) {
             }
         }
         
-        // Étape 3 : Assemblage final des résultats
+        // 3. Assemblage final des résultats
         const finalResults = taxaResults.map(taxonInfo => {
-            if (!taxonInfo.found) return { "Nom scientifique": taxonInfo.originalName, "Erreur": taxonInfo.error };
+            if (!taxonInfo.found) {
+                return { "Nom scientifique": taxonInfo.originalName, "Erreur": taxonInfo.error };
+            }
             
             const result = {
                 "Nom scientifique": taxonInfo.scientificName,
