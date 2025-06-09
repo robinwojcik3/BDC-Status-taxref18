@@ -7,6 +7,24 @@
   # Dossier où Netlify doit chercher les fonctions serverless
   functions = "netlify/functions/"
 
+# Configuration des fonctions
+[functions]
+  # Augmenter le timeout à 26 secondes (max pour le plan gratuit)
+  included_files = ["netlify/functions/**"]
+
+# Configuration spécifique pour la fonction generer-tableau
+[[functions]]
+  path = "/api/generer-tableau"
+  max_duration = 26
+
+# Headers de sécurité
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+
 # Redirection pour rendre l'API plus simple à appeler depuis le frontend
 [[redirects]]
   from = "/api/*"
