@@ -59,9 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentData = [];
         exportBtn.classList.add('hidden');
         resultContainer.innerHTML = '';
+        
+        // Afficher un message de début
+        statusContainer.textContent = `Début du traitement de ${names.length} taxons...`;
+        
         const table = createTableStructure();
         resultContainer.appendChild(table);
         const tbody = table.querySelector('tbody');
+        
         const nameChunks = [];
         for (let i = 0; i < names.length; i += CHUNK_SIZE) {
             nameChunks.push(names.slice(i, i + CHUNK_SIZE));
@@ -75,17 +80,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ scientific_names: nameChunks[i], locationId: locationId })
                 });
-                if (!response.ok) { throw new Error(`Échec du lot (HTTP ${response.status})`); }
+                
+                if (!response.ok) { 
+                    throw new Error(`Échec du lot (HTTP ${response.status})`); 
+                }
+                
                 const chunkData = await response.json();
+                console.log(`Lot ${i + 1} reçu:`, chunkData); // Debug
+                
                 currentData.push(...chunkData);
                 appendDataToTable(chunkData, tbody);
+                
             } catch (err) {
-                statusContainer.textContent = `Une erreur est survenue sur le lot ${i + 1}.`;
-                console.error(err);
+                statusContainer.textContent = `Une erreur est survenue sur le lot ${i + 1}: ${err.message}`;
+                console.error('Erreur détaillée:', err);
             }
         }
-        statusContainer.textContent = `Terminé. ${names.length} taxons traités.`;
-        if (currentData.length > 0) { exportBtn.classList.remove('hidden'); }
+        
+        statusContainer.textContent = `Terminé. ${currentData.length} résultats obtenus sur ${names.length} taxons traités.`;
+        
+        if (currentData.length > 0) { 
+            exportBtn.classList.remove('hidden'); 
+        }
     }
 
     generateBtn.addEventListener('click', () => {
@@ -120,18 +136,33 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendDataToTable(data, tbody) {
         data.forEach(row => {
             const tr = document.createElement('tr');
-            ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
-                const td = document.createElement('td'); td.textContent = row[key] || ''; tr.appendChild(td);
-            });
+            
+            // Colonnes fixes : Nom scientifique, ID Taxon, Erreur
+            const td1 = document.createElement('td');
+            td1.textContent = row['Nom scientifique'] || '';
+            tr.appendChild(td1);
+            
+            const td2 = document.createElement('td');
+            td2.textContent = row['ID Taxon (cd_nom)'] || '';
+            tr.appendChild(td2);
+            
+            const td3 = document.createElement('td');
+            td3.textContent = row['Erreur'] || '';
+            tr.appendChild(td3);
+            
+            // Colonnes de statuts
             colonnesAAfficher.forEach(colonne => {
                 const td = document.createElement('td');
                 const val = row[colonne.key] || '';
                 td.textContent = val;
                 if (colonne.key.startsWith('lr')) {
                     const code = val.split(' ')[0];
-                    if (code === 'LC') td.classList.add('status-lc'); else if (code === 'NT') td.classList.add('status-nt');
-                    else if (code === 'VU') td.classList.add('status-vu'); else if (code === 'EN') td.classList.add('status-en');
-                    else if (code === 'CR') td.classList.add('status-cr'); else if (code === 'DD') td.classList.add('status-dd');
+                    if (code === 'LC') td.classList.add('status-lc'); 
+                    else if (code === 'NT') td.classList.add('status-nt');
+                    else if (code === 'VU') td.classList.add('status-vu'); 
+                    else if (code === 'EN') td.classList.add('status-en');
+                    else if (code === 'CR') td.classList.add('status-cr'); 
+                    else if (code === 'DD') td.classList.add('status-dd');
                 }
                 tr.appendChild(td);
             });
@@ -162,6 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
         document.body.removeChild(link);
     }
+    
+    exportBtn.addEventListener('click', () => {
+        const filename = `statuts_taxref_${new Date().toISOString().slice(0,10)}.csv`;
+        exportToCsv(currentData, filename);
+    });
     
     populateRegions();
 });
