@@ -8,14 +8,20 @@
 <body>
     <header>
         <h1>BDC Status TAXREF18</h1>
+        <p>Génération de tableaux de statuts réglementaires et de conservation via l'API TAXREF v18</p>
     </header>
     <main>
-        <textarea id="taxon-input" placeholder="Saisissez les noms latins, un par ligne"></textarea>
-        <button id="generate-btn">Générer</button>
-        <div id="result-table"></div>
+        <div class="input-container">
+            <label for="taxon-input">Saisissez les noms scientifiques (un par ligne) :</label>
+            <textarea id="taxon-input" placeholder="Exemple :&#10;Panthera pardus&#10;Canis lupus&#10;Ursus arctos"></textarea>
+            <button id="generate-btn">Générer le Tableau</button>
+            <button id="export-btn" class="hidden">Exporter en CSV</button>
+        </div>
+        <div id="status-message"></div>
+        <div id="result-container"></div>
     </main>
     <footer>
-        <p>Prototype utilisant l'API TAXREF</p>
+        <p>Développé par Robin Wojcik - Prototype utilisant l'API TAXREF de l'INPN/MNHN.</p>
     </footer>
     <script src="app.js"></script>
 </body>
