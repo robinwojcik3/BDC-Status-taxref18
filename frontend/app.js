@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (code from Task 3.1 is assumed here) ...
     const generateBtn = document.getElementById('generate-btn');
     const exportBtn = document.getElementById('export-btn');
     const taxonInput = document.getElementById('taxon-input');
@@ -9,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentData = []; // Store the last successful dataset for export
 
     generateBtn.addEventListener('click', async () => {
-        // ... (code from Task 3.1) ...
         // 1. Reset UI
         resultContainer.innerHTML = '';
         exportBtn.classList.add('hidden');
@@ -22,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // 2. Fetch data from backend
+            // 2. Fetch data from the new serverless function endpoint
             const response = await fetch('/api/generer-tableau', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -55,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function displayResults(data) {
-        // ... (code from Task 3.1) ...
         resultContainer.innerHTML = '';
         if (!Array.isArray(data) || data.length === 0) {
             statusContainer.innerHTML = '<p>Aucun résultat à afficher.</p>';
