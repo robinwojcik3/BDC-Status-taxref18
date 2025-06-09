@@ -1,0 +1,55 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f9f9f9;
+}
+
+header, footer {
+    background-color: #2c3e50;
+    color: white;
+    text-align: center;
+    padding: 1rem;
+}
+
+main {
+    padding: 1rem;
+}
+
+textarea {
+    width: 100%;
+    height: 120px;
+}
+
+button {
+    margin-top: 0.5rem;
+    margin-right: 0.5rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+thead {
+    background-color: #34495e;
+    color: white;
+}
+
+td, th {
+    border: 1px solid #ccc;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-lc {
+    background-color: #abf7b1;
+}
+
+.status-en {
+    background-color: #fbe5a5;
+}
+
+.status-cr {
+    background-color: #f5a5a5;
+}
