@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ÉLÉMENTS DU DOM ---
     const generateBtn = document.getElementById('generate-btn');
     const exportBtn = document.getElementById('export-btn');
     const taxonInput = document.getElementById('taxon-input');
@@ -8,10 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const regionSelect = document.getElementById('region-select');
     const departementSelect = document.getElementById('departement-select');
 
-    let currentData = []; // Stocke les données pour l'export
+    let currentData = [];
 
-    // --- DONNÉES DE LOCALISATION (Régions et départements avec codes INSEE) ---
-    // Source: Découpage administratif français. Les codes sont essentiels pour l'API.
     const localisationData = {
         "Auvergne-Rhône-Alpes": { code: "R84", departs: { "Ain": "01", "Allier": "03", "Ardèche": "07", "Cantal": "15", "Drôme": "26", "Isère": "38", "Loire": "42", "Haute-Loire": "43", "Puy-de-Dôme": "63", "Rhône": "69", "Savoie": "73", "Haute-Savoie": "74" } },
         "Bourgogne-Franche-Comté": { code: "R27", departs: { "Côte-d'Or": "21", "Doubs": "25", "Jura": "39", "Nièvre": "58", "Haute-Saône": "70", "Saône-et-Loire": "71", "Yonne": "89", "Territoire de Belfort": "90" } },
@@ -28,22 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
         "Provence-Alpes-Côte d'Azur": { code: "R93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
     };
 
-    // --- LOGIQUE DE L'APPLICATION ---
-
-    // Initialisation des menus déroulants
     function populateRegions() {
         Object.keys(localisationData).sort().forEach(regionName => {
             const option = document.createElement('option');
-            option.value = localisationData[regionName].code;
+            option.value = `reg:${localisationData[regionName].code}`;
             option.textContent = regionName;
             regionSelect.appendChild(option);
         });
     }
 
-    // Mise à jour des départements quand une région est choisie
     regionSelect.addEventListener('change', () => {
-        const regionCode = regionSelect.value;
-        // Vide et désactive le menu des départements
+        const regionCode = regionSelect.value.split(':')[1];
         departementSelect.innerHTML = '<option value="">Toute la région</option>';
         departementSelect.disabled = true;
 
@@ -53,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const departments = localisationData[regionName].departs;
                 Object.keys(departments).sort().forEach(deptName => {
                     const option = document.createElement('option');
-                    option.value = departments[deptName];
+                    option.value = `dep:${departments[deptName]}`;
                     option.textContent = `${deptName} (${departments[deptName]})`;
                     departementSelect.appendChild(option);
                 });
@@ -62,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Événement principal : Clic sur "Générer"
     generateBtn.addEventListener('click', async () => {
         resultContainer.innerHTML = '';
         exportBtn.classList.add('hidden');
@@ -74,8 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Détermine le locationId à envoyer
-        let locationId = departementSelect.value ? `dep:${departementSelect.value}` : (regionSelect.value ? `reg:${regionSelect.value}` : null);
+        let locationId = departementSelect.value || regionSelect.value;
         
         try {
             const response = await fetch('/api/generer-tableau', {
@@ -83,14 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     scientific_names: names,
-                    locationId: locationId // Envoi de l'ID de localisation
+                    locationId: locationId
                 })
             });
 
-            statusContainer.innerHTML = ''; // Cache le spinner
+            statusContainer.innerHTML = '';
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
             }
 
             const data = await response.json();
@@ -103,8 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Le reste des fonctions (displayResults, exportToCsv) reste identique.
-    // ... (Coller ici les fonctions displayResults et exportToCsv de la version précédente) ...
+    // --- NOUVELLE FONCTION D'AFFICHAGE CI-DESSOUS ---
     function displayResults(data) {
         resultContainer.innerHTML = '';
         if (!Array.isArray(data) || data.length === 0) {
@@ -112,39 +101,64 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const table = document.createElement('table');
-        const allHeaders = new Set();
-        data.forEach(row => {
-            Object.keys(row).forEach(key => allHeaders.add(key));
-        });
-
-        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur", "Liste rouge régionale", "Liste rouge nationale", "Protection nationale"];
-        const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
+        // Définition des colonnes à afficher, en correspondance avec les "statusTypeName" de l'API
+        const colonnesAAfficher = [
+            { header: "Liste rouge mondiale", key: "Liste rouge mondiale UICN" },
+            { header: "Liste rouge européenne", key: "Liste rouge européenne UICN" },
+            { header: "Liste rouge nationale", key: "Liste rouge nationale UICN" },
+            { header: "Liste rouge régionale", key: "Liste rouge régionale" },
+            { header: "Protection nationale", key: "Protection nationale" },
+            { header: "Protection régionale", key: "Protection régionale" },
+            { header: "Protection départementale", key: "Protection départementale" },
+            { header: "Directive Habitat", key: "Directive \"Habitats, Faune, Flore\"" },
+            { header: "Directive Oiseaux", key: "Directive \"Oiseaux\"" },
+            { header: "Convention de Berne", key: "Convention de Berne" },
+            { header: "Convention de Bonn", key: "Convention de Bonn" },
+            { header: "Convention OSPAR", key: "Convention OSPAR" },
+            { header: "Convention de Barcelone", key: "Convention de Barcelone" },
+            { header: "ZNIEFF Déterminantes", key: "Déterminant ZNIEFF de type 1" },
+            { header: "Réglementation", key: "Réglementation des espèces exotiques envahissantes" },
+        ];
         
+        const table = document.createElement('table');
         const thead = document.createElement('thead');
         const trHead = document.createElement('tr');
-        headers.forEach(key => {
+        
+        // Création des en-têtes fixes
+        ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.header)].forEach(headerText => {
             const th = document.createElement('th');
-            th.textContent = key;
+            th.textContent = headerText;
             trHead.appendChild(th);
         });
         thead.appendChild(trHead);
         table.appendChild(thead);
 
+        // Remplissage du corps du tableau
         const tbody = document.createElement('tbody');
         data.forEach(row => {
             const tr = document.createElement('tr');
-            headers.forEach(key => {
+            
+            // Cellules de base
+            ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
                 const td = document.createElement('td');
-                const val = row[key];
-                td.textContent = val === null || val === undefined ? '' : val;
-                if (key.toLowerCase().includes('liste rouge')) {
-                    if (val === 'LC') td.classList.add('status-lc');
-                    else if (val === 'NT') td.classList.add('status-nt');
-                    else if (val === 'VU') td.classList.add('status-vu');
-                    else if (val === 'EN') td.classList.add('status-en');
-                    else if (val === 'CR') td.classList.add('status-cr');
-                    else if (val === 'DD') td.classList.add('status-dd');
+                td.textContent = row[key] || '';
+                tr.appendChild(td);
+            });
+
+            // Cellules pour les statuts
+            colonnesAAfficher.forEach(colonne => {
+                const td = document.createElement('td');
+                const val = row[colonne.key] || ''; // Cherche la clé correspondante dans les données reçues
+                td.textContent = val;
+
+                if (colonne.header.toLowerCase().includes('liste rouge')) {
+                    const code = val.split(' ')[0]; // Extrait le code (ex: "LC") de la valeur
+                    if (code === 'LC') td.classList.add('status-lc');
+                    else if (code === 'NT') td.classList.add('status-nt');
+                    else if (code === 'VU') td.classList.add('status-vu');
+                    else if (code === 'EN') td.classList.add('status-en');
+                    else if (code === 'CR') td.classList.add('status-cr');
+                    else if (code === 'DD') td.classList.add('status-dd');
                 }
                 tr.appendChild(td);
             });
@@ -155,17 +169,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         exportBtn.classList.remove('hidden');
     }
-
+    
+    // La fonction exportToCsv est laissée telle quelle pour l'instant
     function exportToCsv(data, filename) {
         if (data.length === 0) return;
         const allHeaders = new Set();
         data.forEach(row => Object.keys(row).forEach(key => allHeaders.add(key)));
-        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur", "Liste rouge régionale", "Liste rouge nationale", "Protection nationale"];
+        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur"];
         const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
         const replacer = (key, value) => value === null ? '' : value;
         const csvRows = data.map(row => headers.map(fieldName => JSON.stringify(row[fieldName] || '', replacer)).join(','));
         const csvString = [headers.join(','), ...csvRows].join('\r\n');
-        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
+        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
@@ -175,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
         document.body.removeChild(link);
     }
-
-    // Lancement de l'initialisation
+    
     populateRegions();
 });
