@@ -1,5 +1,3 @@
-// Fichier : frontend/app.js (version de diagnostic)
-
 document.addEventListener('DOMContentLoaded', () => {
     // Éléments du DOM
     const generateBtn = document.getElementById('generate-btn');
@@ -28,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "Pays de la Loire": { code: "52", departs: { "Loire-Atlantique": "44", "Maine-et-Loire": "49", "Mayenne": "53", "Sarthe": "72", "Vendée": "85" } },
         "Provence-Alpes-Côte d'Azur": { code: "93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
     };
-
+    
     function populateRegions() {
         Object.keys(localisationData).sort().forEach(regionName => {
             const option = document.createElement('option');
@@ -77,16 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ scientific_names: nameChunks[i], locationId: locationId })
                 });
-
                 if (!response.ok) { throw new Error(`Échec du lot (HTTP ${response.status})`); }
-                
                 const chunkData = await response.json();
-                
-                // ===================================================================
-                // LIGNE DE DIAGNOSTIC 1 : AFFICHER LES DONNÉES BRUTES REÇUES
-                console.log(`Données reçues pour le lot ${i + 1}:`, chunkData);
-                // ===================================================================
-
                 currentData.push(...chunkData);
                 appendDataToTable(chunkData, tbody);
             } catch (err) {
@@ -128,11 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function appendDataToTable(data, tbody) {
-        // ===================================================================
-        // LIGNE DE DIAGNOSTIC 2 : VÉRIFIER QUE LA FONCTION EST APPELÉE
-        console.log("Fonction 'appendDataToTable' appelée avec :", data);
-        // ===================================================================
-        
         data.forEach(row => {
             const tr = document.createElement('tr');
             ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
