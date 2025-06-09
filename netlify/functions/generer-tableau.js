@@ -5,7 +5,6 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const API_BASE = "https://taxref.mnhn.fr/api";
 const HEADERS = { "Accept": "application/hal+json;version=1" };
 
-// Fonction handler principale que Netlify exécute.
 exports.handler = async function(event, context) {
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
@@ -22,9 +21,7 @@ exports.handler = async function(event, context) {
             return { statusCode: 200, body: JSON.stringify([]) };
         }
 
-        // ========================================================================
         // ÉTAPE 1 : OBTENIR TOUS LES ID DE TAXONS EN UN SEUL APPEL API
-        // ========================================================================
         const searchParams = new URLSearchParams();
         validNames.forEach(name => searchParams.append('scientificNames', name));
         searchParams.append('size', validNames.length);
@@ -35,7 +32,6 @@ exports.handler = async function(event, context) {
         const taxaSearchData = await taxaSearchResp.json();
         const foundTaxa = taxaSearchData?._embedded?.taxa || [];
 
-        // Création d'une table de correspondance : Nom scientifique -> ID
         const nameToIdMap = new Map();
         foundTaxa.forEach(taxon => {
             nameToIdMap.set(taxon.scientificName, taxon.id);
@@ -43,37 +39,43 @@ exports.handler = async function(event, context) {
 
         const foundIds = Array.from(nameToIdMap.values());
         
-        // ========================================================================
-        // ÉTAPE 2 : OBTENIR TOUS LES STATUTS EN UN SEUL APPEL API (si des ID ont été trouvés)
-        // ========================================================================
+        // ÉTAPE 2 : OBTENIR TOUS LES STATUTS EN UN SEUL APPEL API
         let statusesById = {};
         if (foundIds.length > 0) {
             const statusParams = new URLSearchParams();
             foundIds.forEach(id => statusParams.append('taxrefId', id));
-            statusParams.append('size', 500); // Augmenter la taille pour récupérer de nombreux statuts
+            statusParams.append('size', 500);
             if (locationId) {
                 statusParams.append('locationId', locationId);
             }
 
             const statusResp = await fetch(`${API_BASE}/status/search/lines?${statusParams}`, { headers: HEADERS });
-            if (!statusResp.ok) throw new Error(`L'API TAXREF (recherche statuts) a retourné une erreur ${statusResp.status}`);
 
-            const statusData = await statusResp.json();
-            const allStatuses = statusData?._embedded?.taxonStatuses || [];
-
-            // Regrouper les statuts par ID de taxon pour un accès facile
-            allStatuses.forEach(status => {
-                const taxonId = status.taxon.id;
-                if (!statusesById[taxonId]) {
-                    statusesById[taxonId] = [];
-                }
-                statusesById[taxonId].push(status);
-            });
+            // --- MODIFICATION CI-DESSOUS ---
+            // Gestion spécifique de l'erreur 404
+            if (statusResp.ok) {
+                const statusData = await statusResp.json();
+                const allStatuses = statusData?._embedded?.taxonStatuses || [];
+                
+                allStatuses.forEach(status => {
+                    const taxonId = status.taxon.id;
+                    if (!statusesById[taxonId]) {
+                        statusesById[taxonId] = [];
+                    }
+                    statusesById[taxonId].push(status);
+                });
+            } else if (statusResp.status === 404) {
+                // Ce n'est pas une erreur. L'API signifie juste "aucun statut trouvé".
+                // On laisse statusesById vide, le reste du code fonctionnera.
+                console.log("INFO: L'API TAXREF a retourné 404 pour la recherche de statuts, interprété comme un résultat vide.");
+            } else {
+                // C'est une autre erreur (500, 403, etc.), qu'il faut remonter.
+                throw new Error(`L'API TAXREF (recherche statuts) a retourné une erreur ${statusResp.status}`);
+            }
+            // --- FIN DE LA MODIFICATION ---
         }
         
-        // ========================================================================
         // ÉTAPE 3 : COMBINER LES RÉSULTATS
-        // ========================================================================
         const finalResults = validNames.map(name => {
             const taxonId = nameToIdMap.get(name);
 
