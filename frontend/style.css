@@ -26,6 +26,14 @@ button {
     margin-right: 0.5rem;
 }
 
+#loading {
+    margin-top: 0.5rem;
+}
+
+.hidden {
+    display: none;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
