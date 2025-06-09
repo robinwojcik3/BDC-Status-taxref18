@@ -16,7 +16,13 @@ exports.handler = async function(event, context) {
             return { statusCode: 400, body: JSON.stringify({ error: "Le champ 'scientific_names' doit être une liste." }) };
         }
 
-        const validNames = scientific_names.filter(name => name && name.trim());
+        // --- MODIFICATION CI-DESSOUS ---
+        // Nettoyage plus robuste des noms pour enlever les espaces multiples et les caractères invisibles.
+        const validNames = scientific_names
+            .map(name => name.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim())
+            .filter(Boolean);
+        // --- FIN DE LA MODIFICATION ---
+
         if (validNames.length === 0) {
             return { statusCode: 200, body: JSON.stringify([]) };
         }
@@ -51,8 +57,6 @@ exports.handler = async function(event, context) {
 
             const statusResp = await fetch(`${API_BASE}/status/search/lines?${statusParams}`, { headers: HEADERS });
 
-            // --- MODIFICATION CI-DESSOUS ---
-            // Gestion spécifique de l'erreur 404
             if (statusResp.ok) {
                 const statusData = await statusResp.json();
                 const allStatuses = statusData?._embedded?.taxonStatuses || [];
@@ -65,14 +69,10 @@ exports.handler = async function(event, context) {
                     statusesById[taxonId].push(status);
                 });
             } else if (statusResp.status === 404) {
-                // Ce n'est pas une erreur. L'API signifie juste "aucun statut trouvé".
-                // On laisse statusesById vide, le reste du code fonctionnera.
                 console.log("INFO: L'API TAXREF a retourné 404 pour la recherche de statuts, interprété comme un résultat vide.");
             } else {
-                // C'est une autre erreur (500, 403, etc.), qu'il faut remonter.
                 throw new Error(`L'API TAXREF (recherche statuts) a retourné une erreur ${statusResp.status}`);
             }
-            // --- FIN DE LA MODIFICATION ---
         }
         
         // ÉTAPE 3 : COMBINER LES RÉSULTATS
