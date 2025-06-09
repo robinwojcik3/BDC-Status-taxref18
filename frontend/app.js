@@ -9,8 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const departementSelect = document.getElementById('departement-select');
     
     let currentData = [];
-    const CHUNK_SIZE = 8;
+    const CHUNK_SIZE = 5; // Réduit pour éviter les timeouts
 
+    // Données des régions et départements
     const localisationData = {
         "Auvergne-Rhône-Alpes": { code: "84", departs: { "Ain": "01", "Allier": "03", "Ardèche": "07", "Cantal": "15", "Drôme": "26", "Isère": "38", "Loire": "42", "Haute-Loire": "43", "Puy-de-Dôme": "63", "Rhône": "69", "Savoie": "73", "Haute-Savoie": "74" } },
         "Bourgogne-Franche-Comté": { code: "27", departs: { "Côte-d'Or": "21", "Doubs": "25", "Jura": "39", "Nièvre": "58", "Haute-Saône": "70", "Saône-et-Loire": "71", "Yonne": "89", "Territoire de Belfort": "90" } },
@@ -26,7 +27,24 @@ document.addEventListener('DOMContentLoaded', () => {
         "Pays de la Loire": { code: "52", departs: { "Loire-Atlantique": "44", "Maine-et-Loire": "49", "Mayenne": "53", "Sarthe": "72", "Vendée": "85" } },
         "Provence-Alpes-Côte d'Azur": { code: "93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
     };
+
+    // Colonnes à afficher dans le tableau
+    const colonnesAAfficher = [
+        { header: "Liste rouge mondiale", key: "lrm" },
+        { header: "Liste rouge européenne", key: "lre" },
+        { header: "Liste rouge nationale", key: "lrn" },
+        { header: "Liste rouge régionale", key: "lrr" },
+        { header: "Protection nationale", key: "pn" },
+        { header: "Protection régionale", key: "pr" },
+        { header: "Protection départementale", key: "pd" },
+        { header: "Directive Habitat", key: "dh" },
+        { header: "Directive Oiseaux", key: "do" },
+        { header: "Convention de Berne", key: "bern" },
+        { header: "Convention de Bonn", key: "bonn" },
+        { header: "ZNIEFF Déterminantes", key: "zdet" }
+    ];
     
+    // Initialiser les régions
     function populateRegions() {
         Object.keys(localisationData).sort().forEach(regionName => {
             const option = document.createElement('option');
@@ -36,10 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Gérer le changement de région
     regionSelect.addEventListener('change', () => {
         const regionCode = regionSelect.value;
         departementSelect.innerHTML = '<option value="">Toute la région</option>';
         departementSelect.disabled = true;
+        
         if (regionCode) {
             const regionName = Object.keys(localisationData).find(key => localisationData[key].code === regionCode);
             if (regionName) {
@@ -55,191 +75,200 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function processInChunks(names, locationId) {
-        currentData = [];
-        exportBtn.classList.add('hidden');
-        resultContainer.innerHTML = '';
-        
-        // Afficher un message de début
-        statusContainer.textContent = `Début du traitement de ${names.length} taxons...`;
-        statusContainer.classList.remove('error-message');
-        
-        const table = createTableStructure();
-        resultContainer.appendChild(table);
-        const tbody = table.querySelector('tbody');
-        
-        const nameChunks = [];
-        for (let i = 0; i < names.length; i += CHUNK_SIZE) {
-            nameChunks.push(names.slice(i, i + CHUNK_SIZE));
-        }
-
-        let totalErrors = 0;
-
-        for (let i = 0; i < nameChunks.length; i++) {
-            statusContainer.textContent = `Traitement du lot ${i + 1} sur ${nameChunks.length}...`;
-            
-            let retries = 3;
-            let success = false;
-            
-            while (retries > 0 && !success) {
-                try {
-                    const response = await fetch('/api/generer-tableau', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            scientific_names: nameChunks[i], 
-                            locationId: locationId 
-                        }),
-                        // Ajouter un timeout côté client
-                        signal: AbortSignal.timeout(30000) // 30 secondes
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
-                    }
-                    
-                    const chunkData = await response.json();
-                    console.log(`Lot ${i + 1} reçu:`, chunkData);
-                    
-                    currentData.push(...chunkData);
-                    appendDataToTable(chunkData, tbody);
-                    success = true;
-                    
-                } catch (err) {
-                    retries--;
-                    
-                    if (retries === 0) {
-                        totalErrors++;
-                        console.error('Erreur après 3 tentatives:', err);
-                        
-                        // Ajouter une ligne d'erreur pour ce lot
-                        const errorRow = nameChunks[i].map(name => ({
-                            'Nom scientifique': name,
-                            'Erreur': 'Erreur serveur - Réessayez plus tard'
-                        }));
-                        currentData.push(...errorRow);
-                        appendDataToTable(errorRow, tbody);
-                        
-                        statusContainer.textContent = `Erreur sur le lot ${i + 1}. Poursuite du traitement...`;
-                        statusContainer.classList.add('error-message');
-                    } else {
-                        console.log(`Tentative ${4 - retries}/3 échouée, nouvelle tentative...`);
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre 2 secondes
-                    }
-                }
-            }
-        }
-        
-        const successCount = currentData.filter(d => !d.Erreur).length;
-        
-        if (totalErrors > 0) {
-            statusContainer.textContent = `Terminé avec des erreurs. ${successCount} taxons traités avec succès sur ${names.length}.`;
-            statusContainer.classList.add('error-message');
-        } else {
-            statusContainer.textContent = `Terminé. ${successCount} taxons traités avec succès sur ${names.length}.`;
-            statusContainer.classList.remove('error-message');
-        }
-        
-        if (currentData.length > 0) { 
-            exportBtn.classList.remove('hidden'); 
-        }
-    }
-
-    generateBtn.addEventListener('click', () => {
-        const names = taxonInput.value.split(/\n+/).filter(Boolean);
-        if (names.length === 0) { statusContainer.textContent = 'Veuillez saisir au moins un nom de taxon.'; return; }
-        let locationId = departementSelect.value || regionSelect.value;
-        processInChunks(names, locationId);
-    });
-
-    const colonnesAAfficher = [
-        { header: "Liste rouge mondiale", key: "lrm" }, { header: "Liste rouge européenne", key: "lre" },
-        { header: "Liste rouge nationale", key: "lrn" }, { header: "Liste rouge régionale", key: "lrr" },
-        { header: "Protection nationale", key: "pn" }, { header: "Protection régionale", key: "pr" },
-        { header: "Protection départementale", key: "pd" }, { header: "Directive Habitat", key: "dh" },
-        { header: "Directive Oiseaux", key: "do" }, { header: "Convention de Berne", key: "bern" },
-        { header: "Convention de Bonn", key: "bonn" }, { header: "ZNIEFF Déterminantes", key: "zdet" }
-    ];
-
+    // Créer la structure du tableau
     function createTableStructure() {
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const trHead = document.createElement('tr');
-        ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.header)].forEach(headerText => {
-            const th = document.createElement('th'); th.textContent = headerText; trHead.appendChild(th);
+        
+        // Headers
+        const headers = ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.header)];
+        headers.forEach(headerText => {
+            const th = document.createElement('th');
+            th.textContent = headerText;
+            trHead.appendChild(th);
         });
+        
         thead.appendChild(trHead);
         table.appendChild(thead);
         table.appendChild(document.createElement('tbody'));
+        
         return table;
     }
 
+    // Ajouter des données au tableau
     function appendDataToTable(data, tbody) {
+        console.log('Ajout de', data.length, 'lignes au tableau');
+        
         data.forEach(row => {
             const tr = document.createElement('tr');
             
-            // Colonnes fixes : Nom scientifique, ID Taxon, Erreur
-            const td1 = document.createElement('td');
-            td1.textContent = row['Nom scientifique'] || '';
-            tr.appendChild(td1);
-            
-            const td2 = document.createElement('td');
-            td2.textContent = row['ID Taxon (cd_nom)'] || '';
-            tr.appendChild(td2);
-            
-            const td3 = document.createElement('td');
-            td3.textContent = row['Erreur'] || '';
-            tr.appendChild(td3);
+            // Colonnes fixes
+            ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
+                const td = document.createElement('td');
+                td.textContent = row[key] || '';
+                tr.appendChild(td);
+            });
             
             // Colonnes de statuts
             colonnesAAfficher.forEach(colonne => {
                 const td = document.createElement('td');
-                const val = row[colonne.key] || '';
-                td.textContent = val;
-                if (colonne.key.startsWith('lr')) {
-                    const code = val.split(' ')[0];
-                    if (code === 'LC') td.classList.add('status-lc'); 
-                    else if (code === 'NT') td.classList.add('status-nt');
-                    else if (code === 'VU') td.classList.add('status-vu'); 
-                    else if (code === 'EN') td.classList.add('status-en');
-                    else if (code === 'CR') td.classList.add('status-cr'); 
-                    else if (code === 'DD') td.classList.add('status-dd');
+                const value = row[colonne.key] || '';
+                td.textContent = value;
+                
+                // Coloration pour les listes rouges
+                if (colonne.key.startsWith('lr') && value) {
+                    const code = value.split(' ')[0];
+                    switch(code) {
+                        case 'LC': td.classList.add('status-lc'); break;
+                        case 'NT': td.classList.add('status-nt'); break;
+                        case 'VU': td.classList.add('status-vu'); break;
+                        case 'EN': td.classList.add('status-en'); break;
+                        case 'CR': td.classList.add('status-cr'); break;
+                        case 'DD': td.classList.add('status-dd'); break;
+                    }
                 }
+                
                 tr.appendChild(td);
             });
+            
             tbody.appendChild(tr);
         });
     }
 
+    // Traiter les données par lots
+    async function processInChunks(names, locationId) {
+        currentData = [];
+        exportBtn.classList.add('hidden');
+        resultContainer.innerHTML = '';
+        statusContainer.classList.remove('error-message');
+        
+        // Créer le tableau
+        const table = createTableStructure();
+        resultContainer.appendChild(table);
+        const tbody = table.querySelector('tbody');
+        
+        // Diviser en lots
+        const chunks = [];
+        for (let i = 0; i < names.length; i += CHUNK_SIZE) {
+            chunks.push(names.slice(i, i + CHUNK_SIZE));
+        }
+        
+        statusContainer.textContent = `Traitement de ${names.length} taxons en ${chunks.length} lots...`;
+        
+        // Traiter chaque lot
+        for (let i = 0; i < chunks.length; i++) {
+            statusContainer.textContent = `Traitement du lot ${i + 1}/${chunks.length}...`;
+            
+            try {
+                const response = await fetch('/api/generer-tableau', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scientific_names: chunks[i],
+                        locationId: locationId || null
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log(`Lot ${i + 1} reçu:`, data);
+                
+                if (Array.isArray(data)) {
+                    currentData.push(...data);
+                    appendDataToTable(data, tbody);
+                }
+                
+            } catch (error) {
+                console.error(`Erreur lot ${i + 1}:`, error);
+                
+                // Ajouter des lignes d'erreur pour ce lot
+                const errorData = chunks[i].map(name => ({
+                    'Nom scientifique': name,
+                    'ID Taxon (cd_nom)': '',
+                    'Erreur': 'Erreur de traitement'
+                }));
+                
+                currentData.push(...errorData);
+                appendDataToTable(errorData, tbody);
+            }
+            
+            // Petite pause entre les lots
+            if (i < chunks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        // Message final
+        const successCount = currentData.filter(d => !d.Erreur || d.Erreur === '').length;
+        statusContainer.textContent = `Terminé. ${successCount} taxons traités avec succès sur ${names.length}.`;
+        
+        if (currentData.length > 0) {
+            exportBtn.classList.remove('hidden');
+        }
+    }
+
+    // Bouton générer
+    generateBtn.addEventListener('click', () => {
+        const input = taxonInput.value.trim();
+        if (!input) {
+            statusContainer.textContent = 'Veuillez saisir au moins un nom de taxon.';
+            statusContainer.classList.add('error-message');
+            return;
+        }
+        
+        const names = input.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+        const locationId = departementSelect.value || regionSelect.value || null;
+        
+        console.log('Démarrage du traitement:', names.length, 'taxons');
+        processInChunks(names, locationId);
+    });
+
+    // Export CSV
     function exportToCsv(data, filename) {
-        if (data.length === 0) return;
-        const colonnes = [
-            { header: "Nom scientifique", key: "Nom scientifique" }, { header: "ID Taxon (cd_nom)", key: "ID Taxon (cd_nom)" },
-            { header: "Erreur", key: "Erreur" }, ...colonnesAAfficher
-        ];
-        const headers = colonnes.map(c => c.header);
-        const csvRows = data.map(row => colonnes.map(col => {
-                const value = row[col.key] || '';
-                const escaped = ('' + value).replace(/"/g, '""');
-                return `"${escaped}"`;
-            }).join(',')
-        );
-        const csvString = [headers.join(','), ...csvRows].join('\r\n');
-        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
+        if (!data || data.length === 0) return;
+        
+        // Headers
+        const headers = ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.header)];
+        const keys = ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.key)];
+        
+        // Créer le CSV
+        const csvRows = [headers.join(',')];
+        
+        data.forEach(row => {
+            const values = keys.map(key => {
+                const value = row[key] || '';
+                // Échapper les valeurs contenant des virgules ou des guillemets
+                if (value.includes(',') || value.includes('"')) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+            });
+            csvRows.push(values.join(','));
+        });
+        
+        // Créer le blob et télécharger
+        const csvContent = '\uFEFF' + csvRows.join('\r\n'); // BOM pour UTF-8
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     }
     
     exportBtn.addEventListener('click', () => {
-        const filename = `statuts_taxref_${new Date().toISOString().slice(0,10)}.csv`;
-        exportToCsv(currentData, filename);
+        const date = new Date().toISOString().slice(0, 10);
+        exportToCsv(currentData, `statuts_taxref_${date}.csv`);
     });
     
+    // Initialiser
     populateRegions();
 });
