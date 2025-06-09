@@ -1,43 +1,31 @@
-// Fichier : netlify/functions/generer-tableau.js
-// VERSION MINIMALE ET ROBUSTE
+// Fichier : netlify/functions/generer-tableau-stream.js
+// VERSION AVEC STREAMING POUR ÉVITER LES TIMEOUTS
 
 const fetch = require('node-fetch');
 
-// Configuration
 const API_BASE = "https://taxref.mnhn.fr/api";
-const TIMEOUT = 8000; // 8 secondes de timeout par requête
 
-// Fonction pour faire une requête avec timeout
-async function fetchWithTimeout(url, options = {}) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
-    
+// Recherche simple d'un taxon
+async function searchTaxon(name) {
     try {
+        const url = `${API_BASE}/taxa/search?q=${encodeURIComponent(name)}&size=1`;
         const response = await fetch(url, {
-            ...options,
-            signal: controller.signal,
-            headers: {
-                "Accept": "application/hal+json;version=1",
-                ...options.headers
-            }
+            headers: { "Accept": "application/hal+json;version=1" }
         });
-        clearTimeout(timeoutId);
-        return response;
+        
+        if (!response.ok) return null;
+        
+        const data = await response.json();
+        const taxa = data?._embedded?.taxa || [];
+        return taxa[0] || null;
+        
     } catch (error) {
-        clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-            throw new Error('Timeout de la requête');
-        }
-        throw error;
+        return null;
     }
 }
 
-// Handler principal - SIMPLIFIÉ AU MAXIMUM
-exports.handler = async function(event, context) {
-    // Log pour debug
-    console.log('Requête reçue:', event.httpMethod);
-    
-    // Vérifier la méthode
+// Handler qui traite un seul taxon à la fois
+exports.handler = async function(event) {
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
@@ -46,143 +34,86 @@ exports.handler = async function(event, context) {
     }
     
     try {
-        // Parser le body
-        const body = JSON.parse(event.body);
-        const { scientific_names, locationId } = body;
+        const { scientific_name, locationId } = JSON.parse(event.body);
         
-        console.log(`Traitement de ${scientific_names?.length || 0} noms`);
-        
-        // Validation basique
-        if (!scientific_names || !Array.isArray(scientific_names)) {
+        if (!scientific_name) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'Liste de noms requise' })
+                body: JSON.stringify({ error: 'Nom scientifique requis' })
             };
         }
         
-        // Limiter à 5 noms maximum par requête pour éviter les timeouts
-        const namesToProcess = scientific_names.slice(0, 5);
+        // Rechercher le taxon
+        const taxon = await searchTaxon(scientific_name);
         
-        // Résultats
-        const results = [];
-        
-        // Traiter chaque nom individuellement
-        for (const name of namesToProcess) {
-            try {
-                console.log(`Traitement de: ${name}`);
-                
-                // 1. Rechercher le taxon
-                const searchUrl = `${API_BASE}/taxa/search?q=${encodeURIComponent(name)}&size=1`;
-                const searchResp = await fetchWithTimeout(searchUrl);
-                
-                if (!searchResp.ok) {
-                    results.push({
-                        "Nom scientifique": name,
-                        "ID Taxon (cd_nom)": "",
-                        "Erreur": "Erreur recherche"
-                    });
-                    continue;
-                }
-                
-                const searchData = await searchResp.json();
-                const taxa = searchData?._embedded?.taxa || [];
-                
-                if (taxa.length === 0) {
-                    results.push({
-                        "Nom scientifique": name,
-                        "ID Taxon (cd_nom)": "",
-                        "Erreur": "Non trouvé"
-                    });
-                    continue;
-                }
-                
-                const taxon = taxa[0];
-                
-                // 2. Créer l'objet résultat de base
-                const result = {
-                    "Nom scientifique": taxon.scientificName,
-                    "ID Taxon (cd_nom)": taxon.id,
-                    "Erreur": "",
-                    "lrm": "",
-                    "lre": "",
-                    "lrn": "",
-                    "lrr": "",
-                    "pn": "",
-                    "pr": "",
-                    "pd": "",
-                    "dh": "",
-                    "do": "",
-                    "bern": "",
-                    "bonn": "",
-                    "zdet": ""
-                };
-                
-                // 3. Essayer de récupérer les statuts (optionnel)
-                try {
-                    let statusUrl = `${API_BASE}/status/search/columns?taxrefId=${taxon.id}`;
-                    if (locationId) {
-                        statusUrl += `&locationId=${locationId}`;
-                    }
-                    
-                    const statusResp = await fetchWithTimeout(statusUrl);
-                    
-                    if (statusResp.ok) {
-                        const statusData = await statusResp.json();
-                        const statuses = statusData?._embedded?.taxonStatuses || [];
-                        
-                        if (statuses.length > 0) {
-                            const status = statuses[0];
-                            // Mapper les statuts
-                            result.lrm = status.worldRedList || "";
-                            result.lre = status.europeanRedList || "";
-                            result.lrn = status.nationalRedList || "";
-                            result.lrr = status.localRedList || "";
-                            result.pn = status.nationalProtection || "";
-                            result.pr = status.regionalProtection || "";
-                            result.pd = status.departementalProtection || "";
-                            result.dh = status.hffDirective || "";
-                            result.do = status.birdDirective || "";
-                            result.bern = status.bernConvention || "";
-                            result.bonn = status.bonnConvention || "";
-                            result.zdet = status.determinanteZnieff || "";
-                        }
-                    }
-                } catch (statusError) {
-                    // Ignorer les erreurs de statuts, on a déjà les infos de base
-                    console.log(`Erreur statuts pour ${taxon.id}:`, statusError.message);
-                }
-                
-                results.push(result);
-                
-            } catch (error) {
-                console.error(`Erreur pour ${name}:`, error.message);
-                results.push({
-                    "Nom scientifique": name,
+        if (!taxon) {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    "Nom scientifique": scientific_name,
                     "ID Taxon (cd_nom)": "",
-                    "Erreur": "Erreur traitement"
-                });
-            }
+                    "Erreur": "Non trouvé",
+                    "lrm": "", "lre": "", "lrn": "", "lrr": "",
+                    "pn": "", "pr": "", "pd": "",
+                    "dh": "", "do": "", "bern": "", "bonn": "", "zdet": ""
+                })
+            };
         }
         
-        // Retourner les résultats
-        console.log(`Envoi de ${results.length} résultats`);
+        // Résultat de base
+        const result = {
+            "Nom scientifique": taxon.scientificName,
+            "ID Taxon (cd_nom)": taxon.id,
+            "Erreur": "",
+            "lrm": "", "lre": "", "lrn": "", "lrr": "",
+            "pn": "", "pr": "", "pd": "",
+            "dh": "", "do": "", "bern": "", "bonn": "", "zdet": ""
+        };
+        
+        // Essayer de récupérer les statuts
+        try {
+            let statusUrl = `${API_BASE}/status/search/columns?taxrefId=${taxon.id}`;
+            if (locationId) {
+                statusUrl += `&locationId=${locationId}`;
+            }
+            
+            const statusResponse = await fetch(statusUrl, {
+                headers: { "Accept": "application/hal+json;version=1" }
+            });
+            
+            if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                const statuses = statusData?._embedded?.taxonStatuses || [];
+                
+                if (statuses.length > 0) {
+                    const status = statuses[0];
+                    result.lrm = status.worldRedList || "";
+                    result.lre = status.europeanRedList || "";
+                    result.lrn = status.nationalRedList || "";
+                    result.lrr = status.localRedList || "";
+                    result.pn = status.nationalProtection || "";
+                    result.pr = status.regionalProtection || "";
+                    result.pd = status.departementalProtection || "";
+                    result.dh = status.hffDirective || "";
+                    result.do = status.birdDirective || "";
+                    result.bern = status.bernConvention || "";
+                    result.bonn = status.bonnConvention || "";
+                    result.zdet = status.determinanteZnieff || "";
+                }
+            }
+        } catch (error) {
+            // Ignorer les erreurs de statuts
+        }
         
         return {
             statusCode: 200,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(results)
+            body: JSON.stringify(result)
         };
         
     } catch (error) {
-        console.error('Erreur globale:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ 
-                error: 'Erreur serveur',
-                message: error.message 
-            })
+            body: JSON.stringify({ error: 'Erreur serveur' })
         };
     }
 };
