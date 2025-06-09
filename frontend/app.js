@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Le code de gestion des menus déroulants et du bouton reste le même
     const generateBtn = document.getElementById('generate-btn');
     const exportBtn = document.getElementById('export-btn');
     const taxonInput = document.getElementById('taxon-input');
@@ -24,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "Pays de la Loire": { code: "R52", departs: { "Loire-Atlantique": "44", "Maine-et-Loire": "49", "Mayenne": "53", "Sarthe": "72", "Vendée": "85" } },
         "Provence-Alpes-Côte d'Azur": { code: "R93", departs: { "Alpes-de-Haute-Provence": "04", "Hautes-Alpes": "05", "Alpes-Maritimes": "06", "Bouches-du-Rhône": "13", "Var": "83", "Vaucluse": "84" } }
     };
-
+    
     function populateRegions() {
         Object.keys(localisationData).sort().forEach(regionName => {
             const option = document.createElement('option');
@@ -93,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- NOUVELLE FONCTION D'AFFICHAGE CI-DESSOUS ---
     function displayResults(data) {
         resultContainer.innerHTML = '';
         if (!Array.isArray(data) || data.length === 0) {
@@ -101,30 +101,27 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Définition des colonnes à afficher, en correspondance avec les "statusTypeName" de l'API
+        // --- MODIFICATION CI-DESSOUS ---
+        // Utilise les clés simples et standardisées définies dans le backend
         const colonnesAAfficher = [
-            { header: "Liste rouge mondiale", key: "Liste rouge mondiale UICN" },
-            { header: "Liste rouge européenne", key: "Liste rouge européenne UICN" },
-            { header: "Liste rouge nationale", key: "Liste rouge nationale UICN" },
-            { header: "Liste rouge régionale", key: "Liste rouge régionale" },
-            { header: "Protection nationale", key: "Protection nationale" },
-            { header: "Protection régionale", key: "Protection régionale" },
-            { header: "Protection départementale", key: "Protection départementale" },
-            { header: "Directive Habitat", key: "Directive \"Habitats, Faune, Flore\"" },
-            { header: "Directive Oiseaux", key: "Directive \"Oiseaux\"" },
-            { header: "Convention de Berne", key: "Convention de Berne" },
-            { header: "Convention de Bonn", key: "Convention de Bonn" },
-            { header: "Convention OSPAR", key: "Convention OSPAR" },
-            { header: "Convention de Barcelone", key: "Convention de Barcelone" },
-            { header: "ZNIEFF Déterminantes", key: "Déterminant ZNIEFF de type 1" },
-            { header: "Réglementation", key: "Réglementation des espèces exotiques envahissantes" },
+            { header: "Liste rouge mondiale", key: "lrm" },
+            { header: "Liste rouge européenne", key: "lre" },
+            { header: "Liste rouge nationale", key: "lrn" },
+            { header: "Liste rouge régionale", key: "lrr" },
+            { header: "Protection nationale", key: "pn" },
+            { header: "Protection régionale", key: "pr" },
+            { header: "Protection départementale", key: "pd" },
+            { header: "Directive Habitat", key: "dh" },
+            { header: "Directive Oiseaux", key: "do" },
+            { header: "Convention de Berne", key: "bern" },
+            { header: "Convention de Bonn", key: "bonn" },
+            { header: "ZNIEFF Déterminantes", key: "zdet" }
         ];
         
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const trHead = document.createElement('tr');
         
-        // Création des en-têtes fixes
         ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur', ...colonnesAAfficher.map(c => c.header)].forEach(headerText => {
             const th = document.createElement('th');
             th.textContent = headerText;
@@ -133,26 +130,23 @@ document.addEventListener('DOMContentLoaded', () => {
         thead.appendChild(trHead);
         table.appendChild(thead);
 
-        // Remplissage du corps du tableau
         const tbody = document.createElement('tbody');
         data.forEach(row => {
             const tr = document.createElement('tr');
             
-            // Cellules de base
             ['Nom scientifique', 'ID Taxon (cd_nom)', 'Erreur'].forEach(key => {
                 const td = document.createElement('td');
                 td.textContent = row[key] || '';
                 tr.appendChild(td);
             });
 
-            // Cellules pour les statuts
             colonnesAAfficher.forEach(colonne => {
                 const td = document.createElement('td');
-                const val = row[colonne.key] || ''; // Cherche la clé correspondante dans les données reçues
+                const val = row[colonne.key] || ''; // Cherche la clé simple: "lrn", "pn", etc.
                 td.textContent = val;
 
                 if (colonne.header.toLowerCase().includes('liste rouge')) {
-                    const code = val.split(' ')[0]; // Extrait le code (ex: "LC") de la valeur
+                    const code = val.split(' ')[0];
                     if (code === 'LC') td.classList.add('status-lc');
                     else if (code === 'NT') td.classList.add('status-nt');
                     else if (code === 'VU') td.classList.add('status-vu');
@@ -170,15 +164,38 @@ document.addEventListener('DOMContentLoaded', () => {
         exportBtn.classList.remove('hidden');
     }
     
-    // La fonction exportToCsv est laissée telle quelle pour l'instant
+    // La fonction d'export CSV doit aussi être mise à jour pour utiliser les nouvelles colonnes
     function exportToCsv(data, filename) {
         if (data.length === 0) return;
-        const allHeaders = new Set();
-        data.forEach(row => Object.keys(row).forEach(key => allHeaders.add(key)));
-        const preferredOrder = ["Nom scientifique", "ID Taxon (cd_nom)", "Erreur"];
-        const headers = [...new Set([...preferredOrder, ...allHeaders])].filter(h => allHeaders.has(h));
-        const replacer = (key, value) => value === null ? '' : value;
-        const csvRows = data.map(row => headers.map(fieldName => JSON.stringify(row[fieldName] || '', replacer)).join(','));
+
+        const colonnesAAfficher = [
+            { header: "Nom scientifique", key: "Nom scientifique" },
+            { header: "ID Taxon (cd_nom)", key: "ID Taxon (cd_nom)" },
+            { header: "Erreur", key: "Erreur" },
+            { header: "Liste rouge mondiale", key: "lrm" },
+            { header: "Liste rouge européenne", key: "lre" },
+            { header: "Liste rouge nationale", key: "lrn" },
+            { header: "Liste rouge régionale", key: "lrr" },
+            { header: "Protection nationale", key: "pn" },
+            { header: "Protection régionale", key: "pr" },
+            { header: "Protection départementale", key: "pd" },
+            { header: "Directive Habitat", key: "dh" },
+            { header: "Directive Oiseaux", key: "do" },
+            { header: "Convention de Berne", key: "bern" },
+            { header: "Convention de Bonn", key: "bonn" },
+            { header: "ZNIEFF Déterminantes", key: "zdet" }
+        ];
+
+        const headers = colonnesAAfficher.map(c => c.header);
+        const csvRows = data.map(row => {
+            return colonnesAAfficher.map(col => {
+                const value = row[col.key] || '';
+                // Encadre la valeur de guillemets si elle contient une virgule ou des guillemets
+                const escaped = ('' + value).replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(',');
+        });
+
         const csvString = [headers.join(','), ...csvRows].join('\r\n');
         const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
